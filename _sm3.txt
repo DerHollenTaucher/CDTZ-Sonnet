@@ -1,0 +1,56 @@
+﻿  check('夜里太阳灯被关掉', world.sun.visible === false || world.sun.intensity < 0.1,
+    `intensity=${world.sun.intensity.toFixed(3)}`);
+  check('夜里能看到星星', weather.stars.visible === true,
+    `opacity=${weather.stars.material.opacity.toFixed(2)}`);
+  const windowMaterial = (world.materials || []).find((entry) => /black/i.test(entry.name));
+  check('夜里窗户会发光',
+    Boolean(windowMaterial) && windowMaterial.material.emissiveIntensity > 0.25,
+    windowMaterial ? `emissiveIntensity=${windowMaterial.material.emissiveIntensity.toFixed(2)}`
+      : '没有找到窗户材质');
+
+  // 雨天 / 雪天
+  weather.setHour(12.5);
+  weather.setWeather('rain');
+  const rainCounts = weather.getParticleCounts();
+  check('下雨时有雨滴粒子', rainCounts.rain > 0 && rainCounts.snow === 0,
+    JSON.stringify(rainCounts));
+  check('下雨时能见度变短（雾更浓）', scene.fog.density > clearFogDensity,
+    `${scene.fog.density.toFixed(5)} > ${clearFogDensity.toFixed(5)}`);
+  check('下雨时地面变湿（粗糙度下降）', (world.groundMaterial.roughness || 1) < 1,
+    String(world.groundMaterial.roughness));
+
+  const luminance = (color) => 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
+
+  weather.setWeather('snow');
+  weather.setSeason('winter');
+  const snowCounts = weather.getParticleCounts();
+  check('下雪时有雪花粒子', snowCounts.snow > 0 && snowCounts.rain === 0,
+    JSON.stringify(snowCounts));
+
+  // 冬季：先看不加雪的底色，再看下雪之后会不会变浅（积雪感）
+  weather.setWeather('clear');
+  const winterPlainGround = world.groundMaterial.color.clone();
+  const plasterEntry = (world.materials || [])
+    .find((entry) => /^plaster/i.test(entry.name));
+  const winterPlainPlaster = plasterEntry ? plasterEntry.material.color.clone() : null;
+  weather.setWeather('snow');
+  check('下雪后地面变浅（积雪）',
+    luminance(world.groundMaterial.color) > luminance(winterPlainGround) + 0.05,
+    `${winterPlainGround.getHexString()} → ${world.groundMaterial.color.getHexString()}`);
+  if (plasterEntry) {
+    check('下雪后建筑墙面也变浅',
+      luminance(plasterEntry.material.color) > luminance(winterPlainPlaster) + 0.03,
+      `${winterPlainPlaster.getHexString()} → ${plasterEntry.material.color.getHexString()}`);
+  } else {
+    log('    （当前显示的校园里没有 Plaster 墙面材质，跳过积雪检查）');
+  }
+
+  // 季节一定会改变环境色：半球光的地面色每季不同
+  weather.setWeather('clear');
+  weather.setSeason('summer');
+  const summerAmbient = world.hemisphere.groundColor.clone();
+  const summerGrass = (world.materials || [])
+    .filter((entry) => /plaster \(1\)/i.test(entry.name))
+    .map((entry) => entry.material.color.clone());
+  weather.setSeason('autumn');
+  const autumnAmbient = world.hemisphere.groundColor.clone();

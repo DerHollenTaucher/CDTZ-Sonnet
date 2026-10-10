@@ -1,0 +1,11 @@
+math.jpg        143x170       9.0 KB  ->  face_math.jpg             256x256       9.3 KB
+chinese.jpg     143x193      12.5 KB  ->  face_chinese.jpg          256x256      12.8 KB
+english.jpg     438x489      55.5 KB  ->  face_english.jpg          256x256      14.0 KB
+cheat1.jpg     2767x2108   2241.8 KB  ->  penalty_math.jpg          900x686     134.3 KB
+cheat2.jpg     3000x3347   2689.9 KB  ->  penalty_english.jpg       627x700      83.2 KB
+book1.jpg       450x666      34.7 KB  ->  penalty_chinese_1.jpg     450x666      38.9 KB
+book2.jpg       500x677      39.7 KB  ->  penalty_chinese_2.jpg     500x677      43.9 KB
+generated favicon.png (0.9 KB)
+generated favicon-32.png (1.7 KB)
+
+images: 5083.1 KB -> 336.4 KB (93% smaller)

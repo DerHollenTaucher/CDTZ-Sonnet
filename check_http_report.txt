@@ -1,0 +1,18 @@
+base: http://127.0.0.1:8080
+
+  200      7,490 bytes  text/html                    index.html
+  200     11,062 bytes  text/css                     css/style.css
+  200     18,146 bytes  text/javascript              js/main.js
+  200      5,189 bytes  text/javascript              js/assets.js
+  200     13,984 bytes  text/javascript              js/questions.js
+  200      4,555 bytes  application/json             assets/models/city_manifest.json
+  200  1,698,248 bytes  model/gltf-binary            assets/models/district_00.glb
+  200  7,833,836 bytes  model/gltf-binary            assets/models/district_05.glb
+  200      9,550 bytes  image/jpeg                   assets/textures/face_math.jpg
+  200    137,497 bytes  image/jpeg                   assets/images/penalty_math.jpg
+  200        896 bytes  image/png                    assets/icons/favicon.png
+  200    670,681 bytes  text/javascript              vendor/three/build/three.module.min.js
+  200    108,522 bytes  text/javascript              vendor/three/addons/loaders/GLTFLoader.js
+  200    192,180 bytes  text/javascript              vendor/three-mesh-bvh/index.module.js
+
+全部正常：服务器可以直接把游戏跑起来。

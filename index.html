@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>WallCity 围墙之城 · 学科答题冒险 / Quiz Adventure</title>
+<meta name="description" content="第一人称 3D 答题冒险：在你的校园里找到数学、语文、英语三个学科的怪物，答对题目才能继续前进。 A first-person 3D quiz adventure set in your own campus.">
+<link rel="icon" type="image/png" href="assets/icons/favicon.png">
+<link rel="stylesheet" href="css/style.css">
+<!--
+  three.js 与 three-mesh-bvh 都放在 vendor/ 里，所以整个游戏可以完全离线运行。
+  如果想改回使用 CDN，把下面的路径换成 jsDelivr 地址即可（见 README“切换到 CDN”）。
+-->
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/build/three.module.min.js",
+    "three/addons/": "./vendor/three/addons/",
+    "three-mesh-bvh": "./vendor/three-mesh-bvh/index.module.js"
+  }
+}
+</script>
+</head>
+<body>
+
+<!-- ============================== 载入界面 ============================== -->
+<div id="loading" class="screen">
+  <div class="panel wide">
+    <h1 class="logo">Wall<span>City</span></h1>
+    <p class="subtitle">围墙之城 · 学科答题冒险<br>Quiz Adventure</p>
+    <div class="progress"><div id="loadingBar" class="bar"></div></div>
+    <p id="loadingText" class="muted">正在准备… / Preparing…</p>
+    <p id="loadingTip" class="tip"></p>
+  </div>
+</div>
+
+<!-- ============================== 开始界面 ============================== -->
+<div id="start" class="screen hidden">
+  <div class="panel wide">
+    <h1 class="logo">Wall<span>City</span></h1>
+    <p class="subtitle">围墙之城 · 学科答题冒险<br>Quiz Adventure</p>
+
+    <div class="legend">
+      <div class="legend-item"><span class="dot math"></span>数学 · Math</div>
+      <div class="legend-item"><span class="dot chinese"></span>语文 · Chinese</div>
+      <div class="legend-item"><span class="dot english"></span>英语 · English</div>
+    </div>
+
+    <p class="story">
+      放学的铃声响过，校园里还有三个学科的“怪物”在晃悠——走到它们身边，<b>答对题目</b>才能让它们让路。
+      它们会到处乱走，也可能在楼上或者院子里。答错的话……回家作业会翻倍。
+      <br><span class="en">The bell has rung. Three subject monsters are still wandering your campus.
+      Get close, <b>answer correctly</b>, and they will step aside — answer wrong and your homework doubles.</span>
+    </p>
+
+    <div class="keys">
+      <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移动 Move</div>
+      <div><kbd>Shift</kbd> 疾跑 Sprint</div>
+      <div><kbd>Space</kbd> 跳跃 Jump</div>
+      <div><kbd>Esc</kbd> 暂停 Pause</div>
+      <div><kbd>M</kbd> 小地图 Minimap</div>
+      <div><kbd>H</kbd> 环境面板 Weather</div>
+      <div><kbd>L</kbd> 视角高度 View height</div>
+      <div><kbd>-</kbd><kbd>=</kbd> 视角高低微调 Fine tune</div>
+      <div><kbd>F</kbd> 换天气 Weather</div>
+      <div><kbd>R</kbd> 回出生点 Respawn</div>
+    </div>
+
+    <div class="row">
+      <button id="btnPlay" class="primary">开始游戏 / Start</button>
+      <button id="btnSettings">设置 / Settings</button>
+    </div>
+    <p id="startHint" class="muted small">提示：需要点击画面才能锁定鼠标。若提示不支持，请用最新版 Chrome / Edge。
+      <br>Tip: click the screen to lock the mouse. Use the latest Chrome / Edge if pointer lock is blocked.</p>
+  </div>
+</div>
+
+<!-- ================================ HUD ================================ -->
+<div id="hud" class="hidden">
+  <div id="crosshair"></div>
+
+  <div id="topbar">
+    <div class="stat"><span class="label">得分 Score</span><span id="statScore">0</span></div>
+    <div class="stat"><span class="label">剩余 Left</span><span id="statLeft">0</span></div>
+    <div class="stat"><span class="label">时间 Time</span><span id="statTime">00:00</span></div>
+    <div class="stat"><span class="label">FPS</span><span id="statFps">–</span></div>
+  </div>
+
+  <div id="subjectBar"></div>
+
+  <div id="minimapWrap">
+    <canvas id="minimap" width="180" height="180"></canvas>
+    <div class="minimap-legend"><span>小地图 Minimap (M)</span></div>
+  </div>
+
+  <div id="toast" class="hidden"></div>
+  <div id="prompt" class="hidden"></div>
+</div>
+
+<!-- ====================== 天气 / 季节 / 时间（右侧栏） ====================== -->
+<aside id="weatherPanel">
+  <header>
+    <b>环境</b><span>Environment</span>
+  </header>
+
+  <label class="wp-field">
+    <span>季节 <em>Season</em></span>
+    <select id="setSeason"></select>
+  </label>
+
+  <label class="wp-field">
+    <span>天气 <em>Weather</em></span>
+    <select id="setWeather"></select>
+  </label>
+
+  <label class="wp-field">
+    <span>时间 <em>Time</em> <output id="setHourValue">12:30</output></span>
+    <select id="setTimePreset"></select>
+    <input id="setHour" type="range" min="0" max="24" step="0.25" value="12.5">
+  </label>
+
+  <button id="btnWeatherMore" type="button" class="wp-toggle">更多 ▼ More</button>
+
+  <!-- 不常动的行都收在这里：H 面板一打开不会拉得满屏都是 -->
+  <div id="wpMore" class="wp-more">
+
+  <label class="wp-field">
+    <span>学校纬度 <em>Latitude</em> <output id="latValue">39.9°</output></span>
+    <select id="setLatitudePreset"></select>
+    <input id="setLatitude" type="range" min="-60" max="70" step="0.1" value="39.9">
+  </label>
+
+  <label class="wp-field wp-fog">
+    <span>雾浓度 <em>Fog</em> <output id="fogValue">×1.0</output></span>
+    <input id="setFog" type="range" min="0.2" max="3" step="0.05" value="1">
+  </label>
+
+  <label class="wp-field wp-rain">
+    <span>雨强度 <em>Rain</em> <output id="rainValue">100%</output></span>
+    <input id="setRain" type="range" min="0" max="1.5" step="0.05" value="1">
+  </label>
+
+  <label class="wp-field wp-snow">
+    <span>雪强度 <em>Snow</em> <output id="snowValue">100%</output></span>
+    <input id="setSnow" type="range" min="0" max="1.5" step="0.05" value="1">
+  </label>
+
+  <label class="wp-field">
+    <span>农历日 <em>Lunar date</em> <output id="lunarValue">十五</output></span>
+    <input id="setLunar" type="range" min="1" max="30" step="1" value="15">
+  </label>
+
+  <label class="wp-field check">
+    <input id="setRealLunar" type="checkbox">
+    <span>按真实农历 <em>Real lunar calendar</em></span>
+  </label>
+
+  <p id="solarInfo" class="wp-solar">太阳数据 / Sun data</p>
+  <p id="moonInfo" class="wp-solar">月亮数据 / Moon data</p>
+
+  </div>
+  <!-- /wpMore：更多（纬度 / 雾雨雪 / 真实农历 / 日月数据） -->
+
+  <div class="wp-row">
+    <button id="btnWeatherRandom" type="button">随机 Random</button>
+    <button id="btnWeatherReset" type="button">默认 Reset</button>
+  </div>
+
+  <p class="wp-hint">
+    面板：右上角 <kbd>H</kbd> 开关<br>
+    <span>Panel: press <kbd>H</kbd> to toggle</span><br>
+    <kbd>F</kbd> 换天气 · <kbd>1</kbd>-<kbd>4</kbd> 换季节 · <kbd>[</kbd><kbd>]</kbd> 调时间<br>
+    <span>Weather · Season · Time</span><br>
+    站在城里觉得矮？<kbd>L</kbd> 打开视角面板抬高视野<br>
+    <span>Feeling short? Press <kbd>L</kbd> to raise the viewpoint</span><br>
+    纬度决定太阳轨迹：冬天昼短、太阳低<br>
+    <span>Latitude drives the real sun path and day length</span>
+  </p>
+</aside>
+
+<!-- ====================== 视角高度（左侧面板，L 键开关） ====================== -->
+<aside id="viewPanel">
+  <header>
+    <b>视角</b><span>View</span>
+  </header>
+
+  <label class="wp-field">
+    <span>视角高度 <em>View height</em> <output id="viewValue">2.80 米 m</output></span>
+    <input id="setViewHeight" type="range" min="1.2" max="61.7" step="0.05" value="2.8">
+  </label>
+
+  <div class="wp-row">
+    <button id="btnViewEye" type="button">人眼 Eye</button>
+    <button id="btnViewHigh" type="button">高一点 Higher</button>
+  </div>
+
+  <p class="wp-hint">
+    在城市里觉得像矮人就往上抬。<br>
+    <span>Raise it when the campus makes you feel short.</span><br>
+    <kbd>L</kbd> 开关面板 · <kbd>-</kbd><kbd>=</kbd> 微调（<kbd>Shift</kbd> 更快）· <kbd>0</kbd> 回人眼<br>
+    <span>Panel · fine tune · back to eye level</span>
+  </p>
+</aside>
+
+<!-- ============================== 答题面板 ============================== -->
+<div id="quiz" class="screen hidden">
+  <div class="panel">
+    <div id="quizSubject" class="badge">数学 Math</div>
+    <h2 id="quizQuestion" class="question">题目 / Question</h2>
+    <p id="quizHint" class="muted small"></p>
+    <form id="quizForm" autocomplete="off">
+      <input id="quizInput" type="text" placeholder="在这里输入答案 / type your answer" autocomplete="off" spellcheck="false">
+      <button type="submit" class="primary">提交 / Submit</button>
+    </form>
+    <p id="quizTip" class="tip"></p>
+    <p class="muted small">提示：答案不区分大小写与标点，数学题只填数字即可。
+      <br>Answers ignore case and punctuation; for maths just type the number.</p>
+  </div>
+</div>
+
+<!-- ============================ 失败 / 结束 ============================ -->
+<div id="gameover" class="screen hidden">
+  <div class="panel">
+    <h1 class="fail">答错了！<br><span class="h1-en">Wrong answer!</span></h1>
+    <img id="gameOverImg" class="penalty" alt="惩罚 / penalty">
+    <p id="gameOverText" class="story"></p>
+    <p id="gameOverSub" class="muted small"></p>
+    <div class="row">
+      <button id="btnRetry" class="primary">再来一局 / Try again</button>
+      <button id="btnBackToMenu">返回标题 / Menu</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================== 通关结算 ============================== -->
+<div id="victory" class="screen hidden">
+  <div class="panel">
+    <h1 class="win">通关！可以放学了<br><span class="h1-en">Cleared — school's out!</span></h1>
+    <p id="victoryLine" class="story"></p>
+    <div id="victoryStats" class="stats"></div>
+    <div class="row">
+      <button id="btnAgain" class="primary">再来一局 / Play again</button>
+      <button id="btnMenu">返回标题 / Menu</button>
+    </div>
+  </div>
+</div>
+
+<!-- =============================== 设置 =============================== -->
+<div id="settings" class="screen hidden">
+  <div class="panel">
+    <h2>设置 / Settings</h2>
+
+    <label class="field">
+      <span>鼠标灵敏度 Sensitivity <em id="sensValue">1.0</em></span>
+      <input id="setSensitivity" type="range" min="0.2" max="3" step="0.1" value="1">
+    </label>
+
+    <label class="field">
+      <span>视野 FOV <em id="fovValue">75</em></span>
+      <input id="setFov" type="range" min="60" max="100" step="1" value="75">
+    </label>
+
+    <label class="field">
+      <span>画质 Quality</span>
+      <select id="setQuality">
+        <option value="low">流畅（关阴影）Low — no shadows</option>
+        <option value="medium">均衡 Medium</option>
+        <option value="high" selected>精细（开阴影）High — shadows on</option>
+      </select>
+    </label>
+
+    <label class="field check">
+      <input id="setSound" type="checkbox" checked>
+      <span>音效 / Sound</span>
+    </label>
+
+    <label class="field check">
+      <input id="setMinimap" type="checkbox" checked>
+      <span>小地图 / Minimap</span>
+    </label>
+
+    <label class="field check">
+      <input id="setShowFps" type="checkbox" checked>
+      <span>显示 FPS / Show FPS</span>
+    </label>
+
+    <p class="field-note">
+      视角高度 <em>View height</em>：游戏中按 <kbd>L</kbd> 打开视角面板，
+      或用 <kbd>-</kbd> / <kbd>=</kbd> 微调（<kbd>Shift</kbd> 更快，<kbd>0</kbd> 回到人眼高度）。
+      <br>Press <kbd>L</kbd> in game for the view-height panel, or fine tune with <kbd>-</kbd> / <kbd>=</kbd>
+      (<kbd>Shift</kbd> = faster, <kbd>0</kbd> = eye level).</p>
+
+    <div class="row">
+      <button id="btnSettingsClose" class="primary">完成 / Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- =============================== 暂停 =============================== -->
+<div id="pause" class="screen hidden">
+  <div class="panel">
+    <h2>已暂停 / Paused</h2>
+    <p class="muted">点击“继续”重新锁定鼠标。按 Esc 也可以暂停。
+      <br>Click Resume to lock the mouse again; Esc pauses too.</p>
+    <div class="row">
+      <button id="btnResume" class="primary">继续 / Resume</button>
+      <button id="btnPauseSettings">设置 / Settings</button>
+      <button id="btnQuit">返回标题 / Menu</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

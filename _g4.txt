@@ -1,0 +1,6 @@
+场景                     整体     天空     地面     过曝%     全黑%      色数  结论
+夏日正午                  20%    59%     0%    0.1%   76.6%     494  曝光合理
+    sun=4.167(72.4°) hemi=0.9393 exposure=0.736 fog=0.002344 nightDome=0 moon=0 draws=50 tris=234801 camera=[99, 60, 68]
+
+截图目录: E:\WallCity\tools\postcard
+报告: E:\WallCity\postcard_report.txt

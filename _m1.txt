@@ -1,0 +1,52 @@
+﻿
+E:\WallCity\js\main.js:23:import { createWeather, SEASONS, WEATHERS, TIME_PRESETS } from './weather.js';
+E:\WallCity\js\main.js:39:let weather = null;
+E:\WallCity\js\main.js:84:  // far 要大于天空盒的尺寸（weather.js 里的 sky.scale），否则天空会被裁掉
+E:\WallCity\js\main.js:97:    if (world) world.update(camera.position, weather ? weather.sunDirection : undefined);
+E:\WallCity\js\main.js:137:    onWeatherChange: (values) => applyWeatherSelection(values),
+E:\WallCity\js\main.js:138:    onWeatherRandomize: () => {
+E:\WallCity\js\main.js:139:      const description = weather ? weather.randomize() : null;
+E:\WallCity\js\main.js:141:        world.update(camera.position, weather.sunDirection);
+E:\WallCity\js\main.js:146:    onWeatherReset: () => {
+E:\WallCity\js\main.js:147:      const description = weather ? weather.reset() : null;
+E:\WallCity\js\main.js:149:        world.update(camera.position, weather.sunDirection);
+E:\WallCity\js\main.js:243:  weather = createWeather({ scene, renderer, camera, world, quality });
+E:\WallCity\js\main.js:244:  const presets = ui.getWeatherSelection();
+E:\WallCity\js\main.js:245:  weather.setSeason(presets.season);
+E:\WallCity\js\main.js:246:  weather.setWeather(presets.weather);
+E:\WallCity\js\main.js:247:  weather.setHour(presets.hour);
+E:\WallCity\js\main.js:248:  weather.setLatitude(presets.latitude);
+E:\WallCity\js\main.js:250:  ui.setWeatherSelection(weather.describe());
+E:\WallCity\js\main.js:280:    get weather() { return weather; },
+E:\WallCity\js\main.js:285:    /** 调试：切换季节/天气/时间，例如 setWeather({season:'winter',weather:'snow',hour:20}) */
+E:\WallCity\js\main.js:286:    setWeather: (values) => applyWeatherSelection(values),
+E:\WallCity\js\main.js:288:    probeRender: () => (weather ? weather.probe(32) : null),
+E:\WallCity\js\main.js:376: * @param {{season?: string, weather?: string, hour?: number}} values
+E:\WallCity\js\main.js:378:function applyWeatherSelection(values, options = {}) {
+E:\WallCity\js\main.js:379:  if (!weather || !values) return null;
+E:\WallCity\js\main.js:380:  if (values.season) weather.setSeason(values.season);
+E:\WallCity\js\main.js:381:  if (values.weather) weather.setWeather(values.weather);
+E:\WallCity\js\main.js:382:  if (typeof values.hour === 'number') weather.setHour(values.hour);
+E:\WallCity\js\main.js:383:  if (typeof values.latitude === 'number') weather.setLatitude(values.latitude);
+E:\WallCity\js\main.js:384:  const description = weather.describe();
+E:\WallCity\js\main.js:385:  weather.update(0, camera.position, camera.quaternion);
+E:\WallCity\js\main.js:386:  world.update(camera.position, weather.sunDirection);
+E:\WallCity\js\main.js:430:    if (game.phase === 'playing' && !ui.isWeatherPanelOpen()) {
+E:\WallCity\js\main.js:612:    world.update(camera.position, weather ? weather.sunDirection : undefined);
+E:\WallCity\js\main.js:633:    if (weather) {
+E:\WallCity\js\main.js:634:      let weatherChanged = false;
+E:\WallCity\js\main.js:637:        const opened = ui.toggleWeatherPanel();
+E:\WallCity\js\main.js:642:        weatherChanged = false;
+E:\WallCity\js\main.js:645:        ui.setWeatherSelection(weather.cycleWeather(1));
+E:\WallCity\js\main.js:646:        weatherChanged = true;
+E:\WallCity\js\main.js:650:          ui.setWeatherSelection(weather.setSeason(Object.keys(SEASONS)[index]));
+E:\WallCity\js\main.js:651:          weatherChanged = true;
+E:\WallCity\js\main.js:655:        ui.setWeatherSelection(weather.stepHour(-0.5));
+E:\WallCity\js\main.js:656:        weatherChanged = true;
+E:\WallCity\js\main.js:659:        ui.setWeatherSelection(weather.stepHour(0.5));
+E:\WallCity\js\main.js:660:        weatherChanged = true;
+E:\WallCity\js\main.js:662:      if (weatherChanged) ui.showToast(weather.describe().text, 1500);
+E:\WallCity\js\main.js:701:    world.update(camera.position, weather ? weather.sunDirection : undefined);
+E:\WallCity\js\main.js:706:  if (weather) weather.update(dt, camera.position, camera.quaternion);
+
+

@@ -1,0 +1,594 @@
+﻿/**
+ * ui.js —— 所有 DOM 界面的读写都集中在这里，游戏逻辑不直接碰元素。
+ *
+ * 原型把 restartGame() / checkAnswer() 定义在 module 作用域里，HTML 上的
+ * onclick="restartGame()" 根本找不到它们（浏览器会报 is not defined）。
+ * 现在全部改成 addEventListener，并且把界面操作收拢成一个对象。
+ */
+
+import {
+  SEASONS, WEATHERS, TIME_PRESETS, SEASON_ORDER, WEATHER_ORDER, formatHour
+} from './weather.js';
+import { LATITUDE_PRESETS } from './solar.js';
+
+const SETTINGS_KEY = 'wallcity.settings.v1';
+
+function element(id) {
+  const node = document.getElementById(id);
+  if (!node) throw new Error(`界面缺少元素 #${id}`);
+  return node;
+}
+
+function formatTime(seconds) {
+  const total = Math.max(0, Math.floor(seconds));
+  const minutes = String(Math.floor(total / 60)).padStart(2, '0');
+  const rest = String(total % 60).padStart(2, '0');
+  return `${minutes}:${rest}`;
+}
+
+export function createUI(handlers = {}) {
+  const screens = {
+    loading: element('loading'),
+    start: element('start'),
+    quiz: element('quiz'),
+    gameover: element('gameover'),
+    victory: element('victory'),
+    settings: element('settings'),
+    pause: element('pause')
+  };
+  const hud = element('hud');
+  const loadingBar = element('loadingBar');
+  const loadingText = element('loadingText');
+  const loadingTip = element('loadingTip');
+  const statScore = element('statScore');
+  const statLeft = element('statLeft');
+  const statTime = element('statTime');
+  const statFps = element('statFps');
+  const subjectBar = element('subjectBar');
+  const toastNode = element('toast');
+  const promptNode = element('prompt');
+  const quizSubject = element('quizSubject');
+  const quizQuestion = element('quizQuestion');
+  const quizHint = element('quizHint');
+  const quizTip = element('quizTip');
+  const quizInput = element('quizInput');
+  const quizForm = element('quizForm');
+  const minimap = element('minimap');
+  const minimapWrap = element('minimapWrap');
+  const minimapCtx = minimap.getContext('2d');
+  const gameOverImg = element('gameOverImg');
+  const gameOverText = element('gameOverText');
+  const gameOverSub = element('gameOverSub');
+  const victoryStats = element('victoryStats');
+  const victoryLine = element('victoryLine');
+  const sensValue = element('sensValue');
+  const fovValue = element('fovValue');
+
+  // ---- 环境（天气）面板 ----
+  const weatherPanel = element('weatherPanel');
+  const seasonSelect = element('setSeason');
+  const weatherSelect = element('setWeather');
+  const timePresetSelect = element('setTimePreset');
+  const hourSlider = element('setHour');
+  const hourValue = element('setHourValue');
+  const latitudeSelect = element('setLatitudePreset');
+  const latitudeSlider = element('setLatitude');
+  const latitudeValue = element('latValue');
+  const solarInfo = element('solarInfo');
+  let weatherPanelOpen = false;
+  let currentScreenName = 'loading';
+
+  let toastTimer = 0;
+  let promptTimer = 0;
+  const subjectChips = {};
+
+  /* ---------------------------- 设置读写 ---------------------------- */
+  function readStored() {
+    try {
+      const raw = localStorage.getItem(SETTINGS_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function store(values) {
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(values));
+    } catch (error) {
+      /* 隐私模式下写不了，忽略即可 */
+    }
+  }
+
+  /** 把设置面板的值读出来（含环境面板）。 */
+  function readSettings() {
+    return {
+      sensitivity: parseFloat(element('setSensitivity').value),
+      fov: parseInt(element('setFov').value, 10),
+      quality: element('setQuality').value,
+      sound: element('setSound').checked,
+      minimap: element('setMinimap').checked,
+      showFps: element('setShowFps').checked,
+      weather: getWeatherSelection()
+    };
+  }
+
+  /** 把设置写回面板（开局从 localStorage 恢复时用）。 */
+  function applySettings(values) {
+    if (!values) return;
+    if (typeof values.sensitivity === 'number') element('setSensitivity').value = String(values.sensitivity);
+    if (typeof values.fov === 'number') element('setFov').value = String(values.fov);
+    if (values.quality) element('setQuality').value = values.quality;
+    if (typeof values.sound === 'boolean') element('setSound').checked = values.sound;
+    if (typeof values.minimap === 'boolean') element('setMinimap').checked = values.minimap;
+    if (typeof values.showFps === 'boolean') element('setShowFps').checked = values.showFps;
+    if (values.weather) {
+      if (values.weather.season) seasonSelect.value = values.weather.season;
+      if (values.weather.weather) weatherSelect.value = values.weather.weather;
+      if (typeof values.weather.hour === 'number') syncTimeControls(values.weather.hour);
+      if (typeof values.weather.latitude === 'number') {
+        syncLatitudeControls(values.weather.latitude);
+      }
+    }
+    sensValue.textContent = parseFloat(element('setSensitivity').value).toFixed(1);
+    fovValue.textContent = element('setFov').value;
+  }
+
+  /* --------------------------- 环境（天气）面板 --------------------------- */
+  /** 填下拉框：选项都带中英双语。 */
+  function buildWeatherPanel() {
+    seasonSelect.innerHTML = SEASON_ORDER
+      .map((key) => `<option value="${key}">${SEASONS[key].label} · ${SEASONS[key].labelEn}</option>`)
+      .join('');
+    weatherSelect.innerHTML = WEATHER_ORDER
+      .map((key) => `<option value="${key}">${WEATHERS[key].label} · ${WEATHERS[key].labelEn}</option>`)
+      .join('');
+    timePresetSelect.innerHTML = TIME_PRESETS
+      .map((preset) => `<option value="${preset.key}">${preset.label} ${preset.labelEn}`
+        + ` ${formatHour(preset.hour)}</option>`)
+      .join('') + '<option value="custom">自定义 Custom</option>';
+    latitudeSelect.innerHTML = LATITUDE_PRESETS
+      .map((item) => `<option value="${item.key}">${item.label} ${item.labelEn}`
+        + ` ${item.latitude.toFixed(2)}°</option>`)
+      .join('') + '<option value="custom">自定义 Custom</option>';
+  }
+
+  /** 纬度滑杆 + 地名下拉框同步。 */
+  function syncLatitudeControls(latitude, keepPreset = false) {
+    latitudeValue.textContent = `${latitude.toFixed(1)}°`;
+    latitudeSlider.value = String(latitude);
+    if (keepPreset) return;
+    const match = LATITUDE_PRESETS.find((item) => Math.abs(item.latitude - latitude) < 0.06);
+    latitudeSelect.value = match ? match.key : 'custom';
+  }
+
+  /** 把"日出/日落/昼长/正午高度"显示出来（证明纬度真的在起作用）。 */
+  function setSolarInfo(description) {
+    if (!solarInfo) return;
+    if (description && description.solarText) {
+      solarInfo.textContent = description.solarText;
+      solarInfo.title = description.seasonDayLabel || '';
+    }
+  }
+
+  /** 当前面板上的选择。 */
+  function getWeatherSelection() {
+    return {
+      season: seasonSelect.value || 'summer',
+      weather: weatherSelect.value || 'clear',
+      hour: Number(hourSlider.value),
+      latitude: Number(latitudeSlider.value)
+    };
+  }
+
+  /** 把下拉框里的时间对齐到 slider（找到最接近的预设就当预设，否则算自定义）。 */
+  function syncTimeControls(hour, keepPreset = false) {
+    hourValue.textContent = formatHour(hour);
+    hourSlider.value = String(hour);
+    if (keepPreset) return;
+    const match = TIME_PRESETS.find((preset) => Math.abs(preset.hour - hour) < 0.2);
+    timePresetSelect.value = match ? match.key : 'custom';
+  }
+
+  /** 外部（快捷键 / 载入时）改了天气，同步回面板。 */
+  function setWeatherSelection(description) {
+    if (!description) return description;
+    if (description.season) seasonSelect.value = description.season;
+    if (description.weather) weatherSelect.value = description.weather;
+    if (typeof description.hour === 'number') {
+      syncTimeControls(description.hour, true);
+      const match = TIME_PRESETS.find((preset) => Math.abs(preset.hour - description.hour) < 0.2);
+      timePresetSelect.value = match ? match.key : 'custom';
+    }
+    if (typeof description.latitude === 'number') {
+      syncLatitudeControls(description.latitude);
+    }
+    setSolarInfo(description);
+    return description;
+  }
+
+  function updateWeatherPanelVisibility() {
+    const visible = currentScreenName === 'start'
+      ? true
+      : (currentScreenName === 'hud' ? weatherPanelOpen : false);
+    weatherPanel.classList.toggle('open', visible);
+  }
+
+  function toggleWeatherPanel(force) {
+    weatherPanelOpen = typeof force === 'boolean' ? force : !weatherPanelOpen;
+    updateWeatherPanelVisibility();
+    return weatherPanelOpen;
+  }
+
+  function isWeatherPanelOpen() {
+    return weatherPanelOpen;
+  }
+
+  /* ------------------------------ 界面切换 ------------------------------ */
+  function hideScreens() {
+    Object.values(screens).forEach((node) => node.classList.add('hidden'));
+  }
+
+  function showScreen(name) {
+    hideScreens();
+    if (screens[name]) screens[name].classList.remove('hidden');
+    hud.classList.toggle('hidden', name !== 'hud');
+    currentScreenName = name;
+    updateWeatherPanelVisibility();
+  }
+
+  function showToast(text, duration = 2200) {
+    toastNode.textContent = text;
+    toastNode.classList.remove('hidden');
+    window.clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(() => toastNode.classList.add('hidden'), duration);
+  }
+
+  function showPrompt(text) {
+    if (!text) {
+      promptNode.classList.add('hidden');
+      return;
+    }
+    promptNode.textContent = text;
+    promptNode.classList.remove('hidden');
+    window.clearTimeout(promptTimer);
+    promptTimer = window.setTimeout(() => promptNode.classList.add('hidden'), 900);
+  }
+
+  /* -------------------------------- HUD -------------------------------- */
+  function buildSubjectBar(subjects) {
+    subjectBar.innerHTML = '';
+    Object.values(subjects).forEach((subject) => {
+      const chip = document.createElement('div');
+      chip.className = 'subject-chip';
+      chip.innerHTML = `<span class="dot ${subject.key}"></span>${subject.label} ${subject.labelEn}
+        <b data-count="${subject.key}">0</b>`;
+      subjectBar.appendChild(chip);
+      subjectChips[subject.key] = chip;
+    });
+  }
+
+  function updateSubjectBar(counts) {
+    Object.entries(counts).forEach(([key, value]) => {
+      const chip = subjectChips[key];
+      if (!chip) return;
+      const badge = chip.querySelector('b');
+      if (badge) badge.textContent = String(value);
+      chip.classList.toggle('done', value === 0);
+    });
+  }
+
+  let lastFpsPaint = 0;
+  let cachedFps = '–';
+
+  function updateHud({ score, remaining, time, fps, showFps }) {
+    statScore.textContent = String(score);
+    statLeft.textContent = String(remaining);
+    statTime.textContent = formatTime(time);
+
+    const now = performance.now();
+    if (typeof fps === 'number' && now - lastFpsPaint > 400) {
+      cachedFps = String(Math.round(fps));
+      lastFpsPaint = now;
+    }
+    statFps.parentElement.classList.toggle('hidden', showFps === false);
+    statFps.textContent = cachedFps;
+  }
+
+  /* ------------------------------- 答题 ------------------------------- */
+  let currentQuizHandler = null;
+
+  function submitQuiz(event) {
+    if (event) event.preventDefault();
+    if (currentQuizHandler) currentQuizHandler(quizInput.value);
+  }
+
+  function showQuiz(question, subject) {
+    quizSubject.className = `badge ${subject.key}`;
+    quizSubject.textContent = `${subject.label} · ${subject.labelEn}`;
+    quizQuestion.textContent = question.q;
+    quizHint.textContent = question.hint ? `提示 Tip：${question.hint}` : '';
+    quizTip.textContent = '';
+    quizInput.value = '';
+    quizInput.classList.remove('shake');
+    showScreen('quiz');
+    window.setTimeout(() => quizInput.focus(), 30);
+  }
+
+  function setQuizHandler(handler) {
+    currentQuizHandler = handler;
+  }
+
+  function quizFeedback(text, success) {
+    quizTip.textContent = text;
+    quizTip.style.color = success ? 'var(--ok)' : 'var(--fail)';
+    if (!success) {
+      quizInput.classList.remove('shake');
+      void quizInput.offsetWidth;        // 强制重排，重新触发抖动动画
+      quizInput.classList.add('shake');
+      quizInput.select();
+    }
+  }
+
+  /* ------------------------------ 结算界面 ------------------------------ */
+  function showGameOver({ text, textEn, image }) {
+    if (image) {
+      gameOverImg.src = image;
+      gameOverImg.classList.remove('hidden');
+    } else {
+      gameOverImg.classList.add('hidden');
+    }
+    gameOverText.textContent = text;
+    gameOverSub.textContent = textEn || '';
+    showScreen('gameover');
+  }
+
+  function showVictory({ stats, line }) {
+    victoryLine.textContent = line || '';
+    victoryStats.innerHTML = stats
+      .map((item) => `<div class="cell"><span>${item.label}</span><b>${item.value}</b></div>`)
+      .join('');
+    showScreen('victory');
+  }
+
+  /* ------------------------------ 小地图 ------------------------------ */
+  let minimapPlan = null;         // 采样出来的校园高度图
+  let minimapPlanCanvas = null;
+
+  /**
+   * 把碰撞体采样出来的俯视高度图做成一张贴图。
+   * 越高越亮，于是小地图上能直接看出哪栋楼高、哪儿是院子。
+   */
+  function setMinimapPlan(plan) {
+    minimapPlan = plan || null;
+    minimapPlanCanvas = null;
+    if (!plan || !plan.cols || !plan.rows) return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = plan.cols;
+    canvas.height = plan.rows;
+    const ctx = canvas.getContext('2d');
+    const image = ctx.createImageData(plan.cols, plan.rows);
+    const low = Math.min(0, plan.minHeight);
+    const range = Math.max(1, plan.maxHeight - low);
+
+    for (let index = 0; index < plan.heights.length; index += 1) {
+      const height = plan.heights[index];
+      const offset = index * 4;
+      if (!Number.isFinite(height)) continue;      // 这里没有东西，留透明
+      const t = Math.max(0, Math.min(1, (height - low) / range));
+      image.data[offset] = 70 + t * 185;           // 低处偏蓝灰，高处偏亮黄
+      image.data[offset + 1] = 92 + t * 163;
+      image.data[offset + 2] = 118 + t * 100;
+      image.data[offset + 3] = 235;
+    }
+    ctx.putImageData(image, 0, 0);
+    minimapPlanCanvas = canvas;
+  }
+
+  function drawMinimap({ player, yaw, enemies, bounds }) {
+    const size = minimap.width;
+    const padding = 8;
+    const worldWidth = bounds.maxX - bounds.minX;
+    const worldDepth = bounds.maxZ - bounds.minZ;
+    const scale = Math.min(
+      (size - padding * 2) / worldWidth,
+      (size - padding * 2) / worldDepth
+    );
+
+    minimapCtx.clearRect(0, 0, size, size);
+    minimapCtx.fillStyle = 'rgba(8, 13, 18, 0.55)';
+    minimapCtx.fillRect(0, 0, size, size);
+
+    minimapCtx.save();
+    minimapCtx.translate(size / 2, size / 2);
+    minimapCtx.rotate(yaw);              // 让玩家的正前方朝上
+    minimapCtx.scale(scale, scale);
+    minimapCtx.translate(-player.x, -player.z);
+
+    // 校园底图：按格子的实际世界坐标贴上去
+    if (minimapPlanCanvas && minimapPlan) {
+      minimapCtx.globalAlpha = 0.9;
+      minimapCtx.imageSmoothingEnabled = true;
+      minimapCtx.drawImage(
+        minimapPlanCanvas,
+        minimapPlan.minX,
+        minimapPlan.minZ,
+        minimapPlan.cols * minimapPlan.cell,
+        minimapPlan.rows * minimapPlan.cell
+      );
+      minimapCtx.globalAlpha = 1;
+    }
+
+    // 校园边界
+    minimapCtx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+    minimapCtx.lineWidth = 1.5 / scale;
+    minimapCtx.strokeRect(bounds.minX + 4, bounds.minZ + 4, worldWidth - 8, worldDepth - 8);
+
+    // 敌人亮点
+    enemies.forEach((enemy) => {
+      minimapCtx.fillStyle = enemy.alerted
+        ? '#ff4040'
+        : `#${enemy.color.toString(16).padStart(6, '0')}`;
+      minimapCtx.beginPath();
+      minimapCtx.arc(enemy.x, enemy.z, 3.4 / scale, 0, Math.PI * 2);
+      minimapCtx.fill();
+    });
+
+    minimapCtx.restore();
+
+    // 玩家自己：固定在中心的箭头
+    minimapCtx.save();
+    minimapCtx.translate(size / 2, size / 2);
+    minimapCtx.fillStyle = '#ffffff';
+    minimapCtx.beginPath();
+    minimapCtx.moveTo(0, -7);
+    minimapCtx.lineTo(5, 6);
+    minimapCtx.lineTo(0, 3.4);
+    minimapCtx.lineTo(-5, 6);
+    minimapCtx.closePath();
+    minimapCtx.fill();
+    minimapCtx.restore();
+  }
+
+  function setMinimapVisible(visible) {
+    minimapWrap.classList.toggle('hidden', !visible);
+  }
+
+  function isMinimapVisible() {
+    return !minimapWrap.classList.contains('hidden');
+  }
+
+  /* ------------------------------ 事件绑定 ------------------------------ */
+  let settingsReturnScreen = 'start';
+
+  quizForm.addEventListener('submit', submitQuiz);
+
+  element('btnPlay').addEventListener('click', () => handlers.onStart && handlers.onStart());
+  element('btnSettings').addEventListener('click', () => {
+    settingsReturnScreen = 'start';
+    showScreen('settings');
+  });
+  element('btnPauseSettings').addEventListener('click', () => {
+    settingsReturnScreen = 'pause';
+    showScreen('settings');
+  });
+  element('btnSettingsClose').addEventListener('click', () => {
+    const values = readSettings();
+    store(values);
+    if (handlers.onSettingsChange) handlers.onSettingsChange(values);
+    showScreen(settingsReturnScreen);
+  });
+  element('btnRetry').addEventListener('click', () => handlers.onRetry && handlers.onRetry());
+  element('btnAgain').addEventListener('click', () => handlers.onRetry && handlers.onRetry());
+  element('btnBackToMenu').addEventListener('click', () => handlers.onQuit && handlers.onQuit());
+  element('btnMenu').addEventListener('click', () => handlers.onQuit && handlers.onQuit());
+  element('btnQuit').addEventListener('click', () => handlers.onQuit && handlers.onQuit());
+  element('btnResume').addEventListener('click', () => handlers.onResume && handlers.onResume());
+
+  ['setSensitivity', 'setFov', 'setQuality', 'setSound', 'setMinimap', 'setShowFps']
+    .forEach((id) => {
+      element(id).addEventListener('input', () => {
+        sensValue.textContent = parseFloat(element('setSensitivity').value).toFixed(1);
+        fovValue.textContent = element('setFov').value;
+        const values = readSettings();
+        store(values);
+        if (handlers.onSettingsChange) handlers.onSettingsChange(values);
+      });
+    });
+
+  /* --------------------------- 环境面板的事件 --------------------------- */
+  function emitWeather() {
+    const values = getWeatherSelection();
+    store(readSettings());
+    // 游戏侧会把"这次切换算出来的太阳数据"返回回来，直接显示在面板上
+    const description = handlers.onWeatherChange ? handlers.onWeatherChange(values) : null;
+    if (description) setSolarInfo(description);
+  }
+
+  seasonSelect.addEventListener('change', emitWeather);
+  weatherSelect.addEventListener('change', emitWeather);
+  timePresetSelect.addEventListener('change', () => {
+    const preset = TIME_PRESETS.find((item) => item.key === timePresetSelect.value);
+    if (preset) syncTimeControls(preset.hour, true);
+    emitWeather();
+  });
+  hourSlider.addEventListener('input', () => {
+    syncTimeControls(Number(hourSlider.value));
+    emitWeather();
+  });
+
+  latitudeSelect.addEventListener('change', () => {
+    const preset = LATITUDE_PRESETS.find((item) => item.key === latitudeSelect.value);
+    if (preset) syncLatitudeControls(preset.latitude, true);
+    emitWeather();
+  });
+  latitudeSlider.addEventListener('input', () => {
+    syncLatitudeControls(Number(latitudeSlider.value));
+    emitWeather();
+  });
+  /** 「随机 / 默认」这类由游戏侧计算的选择：拿到结果后同步面板并保存。 */
+  function applyExternalWeather(factory) {
+    if (!factory) return;
+    const description = factory();
+    if (description) {
+      setWeatherSelection(description);
+      store(readSettings());
+    }
+  }
+
+  element('btnWeatherRandom').addEventListener('click',
+    () => applyExternalWeather(handlers.onWeatherRandomize));
+  element('btnWeatherReset').addEventListener('click',
+    () => applyExternalWeather(handlers.onWeatherReset));
+
+  buildWeatherPanel();
+  syncTimeControls(Number(hourSlider.value));
+  syncLatitudeControls(Number(latitudeSlider.value));
+  buildSubjectBar(handlers.subjects || {});
+
+  return {
+    showScreen,
+    showToast,
+    showPrompt,
+    updateHud,
+    updateSubjectBar,
+    showQuiz,
+    setQuizHandler,
+    quizFeedback,
+    showGameOver,
+    showVictory,
+    drawMinimap,
+    setMinimapPlan,
+    setMinimapVisible,
+    isMinimapVisible,
+    readSettings,
+    applySettings,
+
+    /** 环境面板的对外接口。 */
+    getWeatherSelection,
+    setWeatherSelection,
+    toggleWeatherPanel,
+    isWeatherPanelOpen,
+
+    /** 把上次保存的设置填回面板，并返回填好的值。 */
+    restoreSettings() {
+      applySettings(readStored());
+      return readSettings();
+    },
+
+    setLoading(ratio, message) {
+      loadingBar.style.width = `${Math.round(Math.max(0, Math.min(1, ratio)) * 100)}%`;
+      if (message) loadingText.textContent = message;
+    },
+    setLoadingTip(text) {
+      loadingTip.textContent = text;
+    },
+    setStartHint(text) {
+      element('startHint').textContent = text;
+    },
+    focusQuizInput() {
+      quizInput.focus();
+    }
+  };
+}

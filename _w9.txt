@@ -1,0 +1,40 @@
+﻿
+/**
+ * 创建天气/时间系统。
+ *
+ * @param {{scene: THREE.Scene, renderer: object|null, camera: THREE.Camera,
+ *          world: object, quality: object}} options
+ *   renderer 允许传 null：这样没有 WebGL 的自检也能验证参数计算。
+ */
+export function createWeather({ scene, renderer, camera, world, quality }) {
+  // latitude = 学校所在纬度（可以调，太阳轨迹会跟着变）
+  const state = {
+    season: 'summer',
+    weather: 'clear',
+    hour: 12.5,
+    latitude: Number.isFinite(CONFIG.world.latitude) ? CONFIG.world.latitude : 39.9
+  };
+  const visibilityScale = Math.max(1, (world.size && world.size.diagonal ? world.size.diagonal : 420) / 420);
+
+  /* ------------------------------ 天空 ------------------------------ */
+  // 注意：Sky 是一个正方体，scale 就是它的边长。
+  // 它必须比相机远裁剪面小（否则整个天空会被裁掉、画面变黑），
+  // 又要比校园大得多（否则会把校园包不住）。相机 far 见 main.js 的 setupRenderer()。
+  const sky = new Sky();
+  sky.scale.setScalar(1200);
+  sky.name = 'sky';
+  scene.add(sky);
+  const uniforms = sky.material.uniforms;
+  uniforms.turbidity.value = 2;
+  uniforms.rayleigh.value = 1.4;
+  uniforms.mieCoefficient.value = 0.004;
+  uniforms.mieDirectionalG.value = 0.78;
+
+  /* ------------------------------ 云层 ------------------------------ */
+  const cloudTexture = makeCloudTexture();
+  const clouds = new THREE.Mesh(
+    new THREE.SphereGeometry(500, 40, 20),
+    new THREE.MeshBasicMaterial({
+      map: cloudTexture,
+      side: THREE.BackSide,
+      transparent: true,

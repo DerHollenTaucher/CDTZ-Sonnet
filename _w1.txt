@@ -1,0 +1,380 @@
+﻿export function formatHour(hour) {
+  const total = ((hour % 24) + 24) % 24;
+  const h = Math.floor(total);
+  const m = Math.round((total - h) * 60);
+  return `${String(h).padStart(2, '0')}:${String(m === 60 ? 0 : m).padStart(2, '0')}`;
+}
+
+/**
+ * 由"纬度 + 日期 + 时刻"算出太阳方向（真实太阳轨迹，见 js/solar.js）。
+ * 注意太阳高度现在由纬度决定：哈尔滨冬天的正午太阳只有 20° 高，
+ * 而新加坡一年到头都在 60° 以上 —— 这是真的，不是调出来的系数。
+ */
+export function sunDirection(latitude, dayOfYear, solarHour, target = new THREE.Vector3()) {
+  const position = solarPosition(latitude, dayOfYear, solarHour);
+  return directionFromAngles(position.elevation, position.azimuth, target);
+}
+
+/**
+ * 白天的程度：0 = 太阳在地平线以下，1 = 太阳升到 25° 以上。
+ * 用真实高度角而不是"几点钟"，所以高纬度冬天的正午依然会偏暗。
+ */
+export function daylightFactor(elevationDeg) {
+  return THREE.MathUtils.clamp(elevationDeg / 25, 0, 1);
+}
+
+/** 简单的 value noise，用来画云。 */
+function hash2(x, y) {
+  const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453123;
+  return n - Math.floor(n);
+}
+
+function smoothNoise(x, y) {
+  const xi = Math.floor(x);
+  const yi = Math.floor(y);
+  const xf = x - xi;
+  const yf = y - yi;
+  const u = xf * xf * (3 - 2 * xf);
+  const v = yf * yf * (3 - 2 * yf);
+  const a = hash2(xi, yi);
+  const b = hash2(xi + 1, yi);
+  const c = hash2(xi, yi + 1);
+  const d = hash2(xi + 1, yi + 1);
+  return (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v;
+}
+
+function fbm(x, y, octaves = 5) {
+  let value = 0;
+  let amplitude = 0.5;
+  let frequency = 1;
+  for (let i = 0; i < octaves; i += 1) {
+    value += amplitude * smoothNoise(x * frequency, y * frequency);
+    frequency *= 2;
+    amplitude *= 0.5;
+  }
+  return value;
+}
+
+/* ------------------------------------------------------------------ *
+ * 程序化贴图（不占体积，也不用下载）
+ * ------------------------------------------------------------------ */
+
+/** 云层：一张 fbm 噪声，alpha 就是云量。 */
+function makeCloudTexture() {
+  const width = 256;
+  const height = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  const image = ctx.createImageData(width, height);
+
+  for (let y = 0; y < height; y += 1) {
+    const v = y / height;
+    const band = Math.pow(Math.sin(Math.PI * v), 0.55);      // 天顶薄、地平线附近厚
+    for (let x = 0; x < width; x += 1) {
+      const noise = fbm((x / width) * 9, v * 5, 5);
+      const cover = THREE.MathUtils.clamp((noise - 0.4) * 2.8, 0, 1) * band;
+      const offset = (y * width + x) * 4;
+      const shade = 196 + noise * 58;
+      image.data[offset] = shade;
+      image.data[offset + 1] = shade;
+      image.data[offset + 2] = Math.min(255, shade + 8);
+      image.data[offset + 3] = Math.round(cover * 255);
+    }
+  }
+  ctx.putImageData(image, 0, 0);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.repeat.set(2, 1);
+  return texture;
+}
+
+/** 雨点：一条上淡下浓的细长亮线。 */
+function makeRainTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 8;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createLinearGradient(0, 0, 0, 64);
+  gradient.addColorStop(0, 'rgba(210,235,255,0)');
+  gradient.addColorStop(0.35, 'rgba(215,240,255,0.65)');
+  gradient.addColorStop(1, 'rgba(235,250,255,0.05)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(2, 0, 4, 64);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+/** 雪花 / 星星：一个柔和的光点。 */
+function makeSoftDot(inner = 'rgba(255,255,255,1)', outer = 'rgba(255,255,255,0)') {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gradient.addColorStop(0, inner);
+  gradient.addColorStop(0.4, 'rgba(255,255,255,0.75)');
+  gradient.addColorStop(1, outer);
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 64, 64);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+/**
+ * 粒子雨 / 雪：一个 Points，粒子在跟随相机的盒子里循环。
+ * 两种天气共用一个实现，靠贴图、速度和数量区分。
+ */
+function createPrecipitation({ count, area, height, texture, size, opacity, speedRange, sway }) {
+  const positions = new Float32Array(count * 3);
+  const speeds = new Float32Array(count);
+  const phases = new Float32Array(count);
+
+  for (let i = 0; i < count; i += 1) {
+    positions[i * 3] = (Math.random() - 0.5) * area;
+    positions[i * 3 + 1] = (Math.random() - 0.5) * height;
+    positions[i * 3 + 2] = (Math.random() - 0.5) * area;
+    speeds[i] = speedRange[0] + Math.random() * (speedRange[1] - speedRange[0]);
+    phases[i] = Math.random() * Math.PI * 2;
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setDrawRange(0, count);
+
+  const material = new THREE.PointsMaterial({
+    map: texture,
+    size,
+    transparent: true,
+    opacity,
+    depthWrite: false,
+    sizeAttenuation: true,
+    fog: false
+  });
+
+  const points = new THREE.Points(geometry, material);
+  points.frustumCulled = false;      // 盒子跟着相机走，不能被视锥裁掉
+  points.renderOrder = 2;
+  points.visible = false;
+
+  return { points, positions, speeds, phases, geometry, material, count, area, height, sway };
+}
+
+/** 和 three 的 ACESFilmicToneMapping 同一条曲线（用来估算最终屏幕亮度）。 */
+export function estimateDisplayLuminance(linear, exposure) {
+  const x = linear * exposure;
+  const a = 2.51;
+  const b = 0.03;
+  const c = 2.43;
+  const d = 0.59;
+  const e = 0.14;
+  return THREE.MathUtils.clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0, 1);
+}
+
+const WHITE = new THREE.Color(0xffffff);
+const WINDOW_GLOW = new THREE.Color(0xffc978);
+const WET_DARK = new THREE.Color(0x2a2f33);
+const cloudDay = new THREE.Color(0xffffff);
+const cloudSunset = new THREE.Color(0xffc286);
+const cloudNight = new THREE.Color(0x2b3550);
+const cloudScratch = new THREE.Color();
+// 空气透视用的两种雾色：背对太阳偏冷、朝着太阳偏暖
+const coldHaze = new THREE.Color();
+const warmHaze = new THREE.Color();
+const dayHorizonCool = new THREE.Color(0xa8bed2);
+
+/**
+ * 创建天气/时间系统。
+ *
+ * @param {{scene: THREE.Scene, renderer: object|null, camera: THREE.Camera,
+ *          world: object, quality: object}} options
+ *   renderer 允许传 null：这样没有 WebGL 的自检也能验证参数计算。
+ */
+export function createWeather({ scene, renderer, camera, world, quality }) {
+  // latitude = 学校所在纬度（可以调，太阳轨迹会跟着变）
+  const state = {
+    season: 'summer',
+    weather: 'clear',
+    hour: 12.5,
+    latitude: Number.isFinite(CONFIG.world.latitude) ? CONFIG.world.latitude : 39.9
+  };
+  const visibilityScale = Math.max(1, (world.size && world.size.diagonal ? world.size.diagonal : 420) / 420);
+
+  /* ------------------------------ 天空 ------------------------------ */
+  // 注意：Sky 是一个正方体，scale 就是它的边长。
+  // 它必须比相机远裁剪面小（否则整个天空会被裁掉、画面变黑），
+  // 又要比校园大得多（否则会把校园包不住）。相机 far 见 main.js 的 setupRenderer()。
+  const sky = new Sky();
+  sky.scale.setScalar(1200);
+  sky.name = 'sky';
+  scene.add(sky);
+  const uniforms = sky.material.uniforms;
+  uniforms.turbidity.value = 2;
+  uniforms.rayleigh.value = 1.4;
+  uniforms.mieCoefficient.value = 0.004;
+  uniforms.mieDirectionalG.value = 0.78;
+
+  /* ------------------------------ 云层 ------------------------------ */
+  const cloudTexture = makeCloudTexture();
+  const clouds = new THREE.Mesh(
+    new THREE.SphereGeometry(500, 40, 20),
+    new THREE.MeshBasicMaterial({
+      map: cloudTexture,
+      side: THREE.BackSide,
+      transparent: true,
+      depthWrite: false,
+      opacity: 0,
+      fog: false
+    })
+  );
+  clouds.name = 'clouds';
+  clouds.renderOrder = -2;
+  clouds.visible = false;
+  scene.add(clouds);
+
+  /* ------------------------------ 星空 ------------------------------ */
+  const starCount = 900;
+  const starPositions = new Float32Array(starCount * 3);
+  for (let i = 0; i < starCount; i += 1) {
+    // 只放在地平线以上，避免"地下有星星"
+    const theta = Math.random() * Math.PI * 2;
+    const y = 0.06 + Math.random() * 0.94;
+    const r = Math.sqrt(Math.max(0, 1 - y * y));
+    const radius = 900;
+    starPositions[i * 3] = Math.cos(theta) * r * radius;
+    starPositions[i * 3 + 1] = y * radius;
+    starPositions[i * 3 + 2] = Math.sin(theta) * r * radius;
+  }
+  const starGeometry = new THREE.BufferGeometry();
+  starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+  const stars = new THREE.Points(starGeometry, new THREE.PointsMaterial({
+    map: makeSoftDot('rgba(255,255,255,1)'),
+    size: 4.5,
+    sizeAttenuation: false,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    fog: false
+  }));
+  stars.name = 'stars';
+  stars.renderOrder = -3;
+  stars.visible = false;
+  scene.add(stars);
+
+  /* ---------------------------- 银河（一条带） ---------------------------- */
+  // 沿着与地平线成 ~60° 的一个大圆撒点，看着就像夏季银河
+  const galaxyCount = 1600;
+  const galaxyPositions = new Float32Array(galaxyCount * 3);
+  const tilt = THREE.MathUtils.degToRad(58);
+  const galaxyRadius = 880;
+  for (let i = 0; i < galaxyCount; i += 1) {
+    const along = Math.random() * Math.PI * 2;
+    // 沿带的法线方向做高斯式抖动，带就自然"有宽度"
+    const spread = (Math.random() + Math.random() + Math.random() - 1.5) * 0.22;
+    const y = Math.sin(tilt) * Math.cos(along) * -1 + spread * Math.cos(tilt);
+    const x = Math.cos(along);
+    const z = Math.sin(along) * Math.sin(tilt) + spread * Math.sin(tilt);
+    const length = Math.hypot(x, y, z);
+    galaxyPositions[i * 3] = (x / length) * galaxyRadius;
+    galaxyPositions[i * 3 + 1] = (Math.abs(y / length) * 0.9 + 0.05) * galaxyRadius;
+    galaxyPositions[i * 3 + 2] = (z / length) * galaxyRadius;
+  }
+  const galaxyGeometry = new THREE.BufferGeometry();
+  galaxyGeometry.setAttribute('position', new THREE.BufferAttribute(galaxyPositions, 3));
+  const galaxy = new THREE.Points(galaxyGeometry, new THREE.PointsMaterial({
+    map: makeSoftDot('rgba(226,235,255,1)'),
+    size: 3.2,
+    sizeAttenuation: false,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    fog: false
+  }));
+  galaxy.name = 'galaxy';
+  galaxy.renderOrder = -4;
+  galaxy.visible = false;
+  scene.add(galaxy);
+
+  /* ------------------------------ 月亮 ------------------------------ */
+  // 简化成"满月"：位置与太阳正好相反（真实满月就是这样）
+  const moonCanvas = document.createElement('canvas');
+  moonCanvas.width = 128;
+  moonCanvas.height = 128;
+  {
+    const ctx = moonCanvas.getContext('2d');
+    const gradient = ctx.createRadialGradient(64, 64, 30, 64, 64, 64);
+    gradient.addColorStop(0, 'rgba(255,252,240,1)');
+    gradient.addColorStop(0.72, 'rgba(244,242,232,0.96)');
+    gradient.addColorStop(0.86, 'rgba(180,190,210,0.35)');
+    gradient.addColorStop(1, 'rgba(140,160,190,0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 128, 128);
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.fillStyle = 'rgba(214,214,206,0.55)';   // 一点月海的深浅
+    ctx.beginPath();
+    ctx.arc(50, 54, 15, 0, Math.PI * 2);
+    ctx.arc(78, 76, 11, 0, Math.PI * 2);
+    ctx.arc(62, 92, 7, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const moonTexture = new THREE.CanvasTexture(moonCanvas);
+  moonTexture.colorSpace = THREE.SRGBColorSpace;
+  const moon = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: moonTexture,
+    transparent: true,
+    depthWrite: false,
+    fog: false,
+    opacity: 0
+  }));
+  moon.name = 'moon';
+  moon.scale.setScalar(9);          // 约 1°，比真的稍大一点点，不然太小看不见
+  moon.renderOrder = -1;
+  moon.visible = false;
+  scene.add(moon);
+
+  const moonLight = new THREE.DirectionalLight(0x9fb6dd, 0);
+  moonLight.name = 'moonlight';
+  scene.add(moonLight);
+  scene.add(moonLight.target);
+
+  /* --------------------------- 夜间天空压暗罩 --------------------------- */
+  // three 的物理天空着色器没有真正的"夜天顶"，太阳落下后天空还是偏亮。
+  // 这里在天空盒里再套一层半透明深蓝，只在夜里出现，把夜空压到该有的暗度，
+  // 星星和月亮是之后才画的，所以不受影响。
+  const nightDome = new THREE.Mesh(
+    new THREE.SphereGeometry(560, 32, 16),
+    new THREE.MeshBasicMaterial({
+      color: 0x070c17,
+      side: THREE.BackSide,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      fog: false
+    })
+  );
+  nightDome.name = 'nightDome';
+  nightDome.renderOrder = -3.5;
+  nightDome.visible = false;
+  scene.add(nightDome);
+
+  /* --------------------------- 环境光（夜里不黑） --------------------------- */
+  const ambient = new THREE.AmbientLight(0x4b6ea8, 0.18);
+  scene.add(ambient);
+
+  /* ------------------------------ 雨与雪 ------------------------------ */
+  const rain = createPrecipitation({
+    count: 4200, area: 80, height: 46,
+    texture: makeRainTexture(), size: 1.0, opacity: 0.55,
+    speedRange: [24, 34], sway: 0.6
+  });
+  const snow = createPrecipitation({
+    count: 2400, area: 70, height: 40,
+    texture: makeSoftDot('rgba(255,255,255,0.95)'), size: 0.42, opacity: 0.9,
+    speedRange: [1.3, 2.6], sway: 1.4
+  });
+  scene.add(rain.points);

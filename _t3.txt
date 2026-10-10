@@ -1,0 +1,30 @@
+﻿
+E:\WallCity\tests\e2e.js:166:  const panel = doc().getElementById('weatherPanel');
+E:\WallCity\tests\e2e.js:168:    Boolean(panel) && panel.classList.contains('open'));
+E:\WallCity\tests\e2e.js:171:  check('天气下拉框有 6 项', byId('setWeather').options.length === 6,
+E:\WallCity\tests\e2e.js:172:    [...byId('setWeather').options].map((option) => option.textContent).join(' / '));
+E:\WallCity\tests\e2e.js:176:    /[\u4e00-\u9fa5]/.test(byId('setWeather').options[0].textContent)
+E:\WallCity\tests\e2e.js:177:    && /[A-Za-z]/.test(byId('setWeather').options[0].textContent),
+E:\WallCity\tests\e2e.js:178:    byId('setWeather').options[0].textContent);
+E:\WallCity\tests\e2e.js:187:  byId('setWeather').value = 'snow';
+E:\WallCity\tests\e2e.js:188:  byId('setWeather').dispatchEvent(new Event('change'));
+E:\WallCity\tests\e2e.js:194:    game.weather.state.season === 'winter'
+E:\WallCity\tests\e2e.js:195:    && game.weather.state.weather === 'snow'
+E:\WallCity\tests\e2e.js:196:    && Math.abs(game.weather.state.hour - 20) < 0.01,
+E:\WallCity\tests\e2e.js:197:    game.weather.describe().text);
+E:\WallCity\tests\e2e.js:198:  check('下雪时雪花粒子开启', game.weather.getParticleCounts().snow > 0,
+E:\WallCity\tests\e2e.js:199:    JSON.stringify(game.weather.getParticleCounts()));
+E:\WallCity\tests\e2e.js:216:  const initialDescription = game.weather.describe();
+E:\WallCity\tests\e2e.js:230:  const beijingInfo = { ...game.weather.describe() };
+E:\WallCity\tests\e2e.js:236:  const harbinInfo = { ...game.weather.describe() };
+E:\WallCity\tests\e2e.js:249:  check('纬度会跟着一起存进设置', Boolean(game.ui.readSettings().weather.latitude),
+E:\WallCity\tests\e2e.js:250:    String(game.ui.readSettings().weather.latitude));
+E:\WallCity\tests\e2e.js:261:    { season: 'summer', weather: 'clear', hour: 12.5, label: '夏日晴天正午' },
+E:\WallCity\tests\e2e.js:262:    { season: 'summer', weather: 'overcast', hour: 12.5, label: '夏日阴天正午' },
+E:\WallCity\tests\e2e.js:263:    { season: 'autumn', weather: 'fog', hour: 17.5, label: '秋日雾天傍晚' },
+E:\WallCity\tests\e2e.js:264:    { season: 'winter', weather: 'snow', hour: 9, label: '冬日下雪上午' },
+E:\WallCity\tests\e2e.js:265:    { season: 'summer', weather: 'clear', hour: 22, label: '夏日晴天夜晚' }
+E:\WallCity\tests\e2e.js:270:    game.setWeather({ season: item.season, weather: item.weather, hour: item.hour });
+E:\WallCity\tests\e2e.js:298:  game.setWeather({ season: 'summer', weather: 'clear', hour: 12.5 });
+
+

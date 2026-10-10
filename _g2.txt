@@ -1,0 +1,5 @@
+WallCity 自检
+  浏览器: C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe
+  页面:   http://127.0.0.1:8231/tests/smoke.html
+  等待结果（最多 240 秒）…
+

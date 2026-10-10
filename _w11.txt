@@ -1,0 +1,10 @@
+﻿
+LineNumber Line                                                                                           
+---------- ----                                                                                           
+       830     moonDir.copy(sunDir).negate();                                                             
+       831     const moonUp = moonDir.y > 0.05;                                                           
+       832     moonLight.intensity = moonUp ? 0.32 * Math.pow(night, 1.3) * (1 - weather.cloud * 0.7) : 0;
+       835     const moonFade = THREE.MathUtils.clamp(moonDir.y * 6, 0, 1);                               
+       836     moon.material.opacity = Math.pow(night, 1.5) * moonFade * (1 - weather.cloud * 0.85);      
+
+

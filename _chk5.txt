@@ -1,0 +1,24 @@
+﻿    command = [
+        browser,
+        "--headless=new",
+        "--disable-gpu",
+        "--no-first-run",
+        "--no-default-browser-check",
+        "--disable-extensions",
+        "--disable-background-networking",
+        "--disable-sync",
+        "--mute-audio",
+        f"--window-size={args.window_size}",
+        f"--user-data-dir={profile}",
+        url,
+    ]
+
+    print("WallCity 自检")
+    print(f"  浏览器: {browser}")
+    print(f"  页面:   {url}")
+    print(f"  等待结果（最多 {args.timeout:.0f} 秒）…")
+
+    started = time.time()
+    process = subprocess.Popen(
+        command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, encoding="utf-8", errors="replace"

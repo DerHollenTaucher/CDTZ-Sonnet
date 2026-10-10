@@ -1,0 +1,19 @@
+﻿
+LineNumber Line                                                                         
+---------- ----                                                                         
+       225   const styleOf = (node) => doc().defaultView.getComputedStyle(node).display;
+       226   check('面板里有月亮数据行', Boolean(byId('moonInfo')));                             
+       231   byId('setFog').value = '1';                                                
+       232   byId('setFog').dispatchEvent(new Event('input'));                          
+       235   byId('setFog').value = '3';                                                
+       236   byId('setFog').dispatchEvent(new Event('input'));                          
+       250   check('雾天不显示雨强度滑杆', styleOf(rainField) === 'none', styleOf(rainField));    
+       254   check('下雨时雨强度滑杆出现', styleOf(rainField) !== 'none', styleOf(rainField));    
+       272     styleOf(snowField) !== 'none' && styleOf(rainField) === 'none',          
+       273     `雪=${styleOf(snowField)} 雨=${styleOf(rainField)}`);                      
+       301   check('月亮数据行跟着变', /新月/.test(byId('moonInfo').textContent),                 
+       302     byId('moonInfo').textContent);                                           
+       324   byId('setFog').value = '1';                                                
+       325   byId('setFog').dispatchEvent(new Event('input'));                          
+
+

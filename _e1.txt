@@ -1,0 +1,105 @@
+﻿  // 所以这里等 HUD 真的刷新出数字，而不是固定等一小段时间
+  const fpsUpdated = await waitFor(() => /\d/.test(byId('statFps').textContent), 10000, 200);
+  check('帧率统计在更新', fpsUpdated,
+    `statFps=「${byId('statFps').textContent}」 渲染 ${info.calls} 次调用/帧`);
+
+  /* ------------------- 1.5 环境面板：季节 / 天气 / 时间 ------------------- */
+  const panel = doc().getElementById('weatherPanel');
+  check('右侧环境面板存在且默认可见',
+    Boolean(panel) && panel.classList.contains('open'));
+  check('季节下拉框有 4 项', byId('setSeason').options.length === 4,
+    String(byId('setSeason').options.length));
+  check('天气下拉框有 6 项', byId('setWeather').options.length === 6,
+    [...byId('setWeather').options].map((option) => option.textContent).join(' / '));
+  check('时间下拉框有 7 项（6 个预设 + 自定义）', byId('setTimePreset').options.length === 7,
+    String(byId('setTimePreset').options.length));
+  check('下拉框选项是中英双语',
+    /[\u4e00-\u9fa5]/.test(byId('setWeather').options[0].textContent)
+    && /[A-Za-z]/.test(byId('setWeather').options[0].textContent),
+    byId('setWeather').options[0].textContent);
+  check('HUD 与按钮也是中英双语',
+    /[\u4e00-\u9fa5]/.test(byId('statScore').previousElementSibling.textContent)
+    && /[A-Za-z]/.test(byId('statScore').previousElementSibling.textContent),
+    byId('statScore').previousElementSibling.textContent);
+
+  // 用面板真的点一遍：冬天 + 下雪 + 20:00
+  byId('setSeason').value = 'winter';
+  byId('setSeason').dispatchEvent(new Event('change'));
+  byId('setWeather').value = 'snow';
+  byId('setWeather').dispatchEvent(new Event('change'));
+  byId('setHour').value = '20';
+  byId('setHour').dispatchEvent(new Event('input'));
+  await wait(300);
+
+  check('面板改动能传到游戏里',
+    game.weather.state.season === 'winter'
+    && game.weather.state.weather === 'snow'
+    && Math.abs(game.weather.state.hour - 20) < 0.01,
+    game.weather.describe().text);
+  check('下雪时雪花粒子开启', game.weather.getParticleCounts().snow > 0,
+    JSON.stringify(game.weather.getParticleCounts()));
+  const glowing = game.world.materials
+    .filter((entry) => /black/i.test(entry.name))
+    .map((entry) => entry.material.emissiveIntensity);
+  check('夜里窗户发光',
+    glowing.some((value) => value > 0.25),
+    `emissiveIntensity=${glowing.map((value) => value.toFixed(2)).join(',')}`);
+  check('时间标签同步更新', byId('setHourValue').textContent === '20:00',
+    byId('setHourValue').textContent);
+
+  /* ---------------- 1.6 学校纬度：面板改了，太阳轨迹要跟着变 ---------------- */
+  check('纬度下拉框有地名预设 + 自定义',
+    byId('setLatitudePreset').options.length >= 8,
+    [...byId('setLatitudePreset').options].map((option) => option.textContent).slice(0, 3).join(' / ')
+      + ' …');
+  check('纬度滑杆有范围', byId('setLatitude').min === '-60' && byId('setLatitude').max === '70',
+    `${byId('setLatitude').min}~${byId('setLatitude').max}`);
+  const initialDescription = game.weather.describe();
+  check('describe() 里有 solarText', Boolean(initialDescription.solarText),
+    String(initialDescription.solarText).slice(0, 90));
+  check('面板里有 solarInfo 元素', Boolean(byId('solarInfo')));
+  check('太阳数据行显示了日出/日落/昼长',
+    /日出/.test(byId('solarInfo').textContent) && /昼长/.test(byId('solarInfo').textContent),
+    byId('solarInfo').textContent);
+
+  // 冬至 + 北京 → 冬至 + 哈尔滨：正午太阳更低、昼更短
+  byId('setSeason').value = 'winter';
+  byId('setSeason').dispatchEvent(new Event('change'));
+  byId('setLatitude').value = '39.9';
+  byId('setLatitude').dispatchEvent(new Event('input'));
+  await wait(250);
+  const beijingInfo = { ...game.weather.describe() };
+  const beijingText = byId('solarInfo').textContent;
+
+  byId('setLatitudePreset').value = 'harbin';
+  byId('setLatitudePreset').dispatchEvent(new Event('change'));
+  await wait(250);
+  const harbinInfo = { ...game.weather.describe() };
+  const harbinText = byId('solarInfo').textContent;
+
+  check('改纬度后太阳数据行跟着变', beijingText !== harbinText,
+    `北京「${beijingText}」→ 哈尔滨「${harbinText}」`);
+  check('纬度传到了游戏里', Math.abs(harbinInfo.latitude - 45.8) < 0.05,
+    `${harbinInfo.latitude}°`);
+  check('哈尔滨冬至正午太阳比北京更低',
+    harbinInfo.noonElevation < beijingInfo.noonElevation - 4,
+    `${harbinInfo.noonElevation.toFixed(1)}° < ${beijingInfo.noonElevation.toFixed(1)}°`);
+  check('哈尔滨冬至昼比北京更短',
+    harbinInfo.dayLength < beijingInfo.dayLength - 0.5,
+    `${harbinInfo.dayLength.toFixed(1)}h < ${beijingInfo.dayLength.toFixed(1)}h`);
+  check('纬度会跟着一起存进设置', Boolean(game.ui.readSettings().weather.latitude),
+    String(game.ui.readSettings().weather.latitude));
+
+  // 回到北京 + 夏至，继续后面的流程
+  byId('setLatitude').value = '39.9';
+  byId('setLatitude').dispatchEvent(new Event('input'));
+  byId('setSeason').value = 'summer';
+  byId('setSeason').dispatchEvent(new Event('change'));
+  await wait(200);
+
+  // 亮度探针：几个典型光照各测一次，同时也把数值写进报告
+  const lightingCases = [
+    { season: 'summer', weather: 'clear', hour: 12.5, label: '夏日晴天正午' },
+    { season: 'summer', weather: 'overcast', hour: 12.5, label: '夏日阴天正午' },
+    { season: 'autumn', weather: 'fog', hour: 17.5, label: '秋日雾天傍晚' },
+    { season: 'winter', weather: 'snow', hour: 9, label: '冬日下雪上午' },

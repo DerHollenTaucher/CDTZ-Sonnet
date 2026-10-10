@@ -1,0 +1,240 @@
+﻿  function readSettings() {
+    return {
+      sensitivity: parseFloat(element('setSensitivity').value),
+      fov: parseInt(element('setFov').value, 10),
+      quality: element('setQuality').value,
+      sound: element('setSound').checked,
+      minimap: element('setMinimap').checked,
+      showFps: element('setShowFps').checked,
+      weather: getWeatherSelection()
+    };
+  }
+
+  /** 把设置写回面板（开局从 localStorage 恢复时用）。 */
+  function applySettings(values) {
+    if (!values) return;
+    if (typeof values.sensitivity === 'number') element('setSensitivity').value = String(values.sensitivity);
+    if (typeof values.fov === 'number') element('setFov').value = String(values.fov);
+    if (values.quality) element('setQuality').value = values.quality;
+    if (typeof values.sound === 'boolean') element('setSound').checked = values.sound;
+    if (typeof values.minimap === 'boolean') element('setMinimap').checked = values.minimap;
+    if (typeof values.showFps === 'boolean') element('setShowFps').checked = values.showFps;
+    if (values.weather) {
+      if (values.weather.season) seasonSelect.value = values.weather.season;
+      if (values.weather.weather) weatherSelect.value = values.weather.weather;
+      if (typeof values.weather.hour === 'number') syncTimeControls(values.weather.hour);
+      if (typeof values.weather.latitude === 'number') {
+        syncLatitudeControls(values.weather.latitude);
+      }
+    }
+    sensValue.textContent = parseFloat(element('setSensitivity').value).toFixed(1);
+    fovValue.textContent = element('setFov').value;
+  }
+
+  /* --------------------------- 环境（天气）面板 --------------------------- */
+  /** 填下拉框：选项都带中英双语。 */
+  function buildWeatherPanel() {
+    seasonSelect.innerHTML = SEASON_ORDER
+      .map((key) => `<option value="${key}">${SEASONS[key].label} · ${SEASONS[key].labelEn}</option>`)
+      .join('');
+    weatherSelect.innerHTML = WEATHER_ORDER
+      .map((key) => `<option value="${key}">${WEATHERS[key].label} · ${WEATHERS[key].labelEn}</option>`)
+      .join('');
+    timePresetSelect.innerHTML = TIME_PRESETS
+      .map((preset) => `<option value="${preset.key}">${preset.label} ${preset.labelEn}`
+        + ` ${formatHour(preset.hour)}</option>`)
+      .join('') + '<option value="custom">自定义 Custom</option>';
+    latitudeSelect.innerHTML = LATITUDE_PRESETS
+      .map((item) => `<option value="${item.key}">${item.label} ${item.labelEn}`
+        + ` ${item.latitude.toFixed(2)}°</option>`)
+      .join('') + '<option value="custom">自定义 Custom</option>';
+  }
+
+  /** 纬度滑杆 + 地名下拉框同步。 */
+  function syncLatitudeControls(latitude, keepPreset = false) {
+    latitudeValue.textContent = `${latitude.toFixed(1)}°`;
+    latitudeSlider.value = String(latitude);
+    if (keepPreset) return;
+    const match = LATITUDE_PRESETS.find((item) => Math.abs(item.latitude - latitude) < 0.06);
+    latitudeSelect.value = match ? match.key : 'custom';
+  }
+
+  /** 把"日出/日落/昼长/正午高度"显示出来（证明纬度真的在起作用）。 */
+  function setSolarInfo(description) {
+    if (!solarInfo) return;
+    if (description && description.solarText) {
+      solarInfo.textContent = description.solarText;
+      solarInfo.title = description.seasonDayLabel || '';
+    }
+  }
+
+  /** 当前面板上的选择。 */
+  function getWeatherSelection() {
+    return {
+      season: seasonSelect.value || 'summer',
+      weather: weatherSelect.value || 'clear',
+      hour: Number(hourSlider.value),
+      latitude: Number(latitudeSlider.value)
+    };
+  }
+
+  /** 把下拉框里的时间对齐到 slider（找到最接近的预设就当预设，否则算自定义）。 */
+  function syncTimeControls(hour, keepPreset = false) {
+    hourValue.textContent = formatHour(hour);
+    hourSlider.value = String(hour);
+    if (keepPreset) return;
+    const match = TIME_PRESETS.find((preset) => Math.abs(preset.hour - hour) < 0.2);
+    timePresetSelect.value = match ? match.key : 'custom';
+  }
+
+  /** 外部（快捷键 / 载入时）改了天气，同步回面板。 */
+  function setWeatherSelection(description) {
+    if (!description) return description;
+    if (description.season) seasonSelect.value = description.season;
+    if (description.weather) weatherSelect.value = description.weather;
+    if (typeof description.hour === 'number') {
+      syncTimeControls(description.hour, true);
+      const match = TIME_PRESETS.find((preset) => Math.abs(preset.hour - description.hour) < 0.2);
+      timePresetSelect.value = match ? match.key : 'custom';
+    }
+    if (typeof description.latitude === 'number') {
+      syncLatitudeControls(description.latitude);
+    }
+    setSolarInfo(description);
+    return description;
+  }
+
+  function updateWeatherPanelVisibility() {
+    const visible = currentScreenName === 'start'
+      ? true
+      : (currentScreenName === 'hud' ? weatherPanelOpen : false);
+    weatherPanel.classList.toggle('open', visible);
+  }
+
+  function toggleWeatherPanel(force) {
+    weatherPanelOpen = typeof force === 'boolean' ? force : !weatherPanelOpen;
+    updateWeatherPanelVisibility();
+    return weatherPanelOpen;
+  }
+
+  function isWeatherPanelOpen() {
+    return weatherPanelOpen;
+  }
+
+  /* ------------------------------ 界面切换 ------------------------------ */
+  function hideScreens() {
+    Object.values(screens).forEach((node) => node.classList.add('hidden'));
+  }
+
+  function showScreen(name) {
+    hideScreens();
+    if (screens[name]) screens[name].classList.remove('hidden');
+    hud.classList.toggle('hidden', name !== 'hud');
+    currentScreenName = name;
+    updateWeatherPanelVisibility();
+  }
+
+  function showToast(text, duration = 2200) {
+    toastNode.textContent = text;
+    toastNode.classList.remove('hidden');
+    window.clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(() => toastNode.classList.add('hidden'), duration);
+  }
+
+  function showPrompt(text) {
+    if (!text) {
+      promptNode.classList.add('hidden');
+      return;
+    }
+    promptNode.textContent = text;
+    promptNode.classList.remove('hidden');
+    window.clearTimeout(promptTimer);
+    promptTimer = window.setTimeout(() => promptNode.classList.add('hidden'), 900);
+  }
+
+  /* -------------------------------- HUD -------------------------------- */
+  function buildSubjectBar(subjects) {
+    subjectBar.innerHTML = '';
+    Object.values(subjects).forEach((subject) => {
+      const chip = document.createElement('div');
+      chip.className = 'subject-chip';
+      chip.innerHTML = `<span class="dot ${subject.key}"></span>${subject.label} ${subject.labelEn}
+        <b data-count="${subject.key}">0</b>`;
+      subjectBar.appendChild(chip);
+      subjectChips[subject.key] = chip;
+    });
+  }
+
+  function updateSubjectBar(counts) {
+    Object.entries(counts).forEach(([key, value]) => {
+      const chip = subjectChips[key];
+      if (!chip) return;
+      const badge = chip.querySelector('b');
+      if (badge) badge.textContent = String(value);
+      chip.classList.toggle('done', value === 0);
+    });
+  }
+
+  let lastFpsPaint = 0;
+  let cachedFps = '–';
+
+  function updateHud({ score, remaining, time, fps, showFps }) {
+    statScore.textContent = String(score);
+    statLeft.textContent = String(remaining);
+    statTime.textContent = formatTime(time);
+
+    const now = performance.now();
+    if (typeof fps === 'number' && now - lastFpsPaint > 400) {
+      cachedFps = String(Math.round(fps));
+      lastFpsPaint = now;
+    }
+    statFps.parentElement.classList.toggle('hidden', showFps === false);
+    statFps.textContent = cachedFps;
+  }
+
+  /* ------------------------------- 答题 ------------------------------- */
+  let currentQuizHandler = null;
+
+  function submitQuiz(event) {
+    if (event) event.preventDefault();
+    if (currentQuizHandler) currentQuizHandler(quizInput.value);
+  }
+
+  function showQuiz(question, subject) {
+    quizSubject.className = `badge ${subject.key}`;
+    quizSubject.textContent = `${subject.label} · ${subject.labelEn}`;
+    quizQuestion.textContent = question.q;
+    quizHint.textContent = question.hint ? `提示 Tip：${question.hint}` : '';
+    quizTip.textContent = '';
+    quizInput.value = '';
+    quizInput.classList.remove('shake');
+    showScreen('quiz');
+    window.setTimeout(() => quizInput.focus(), 30);
+  }
+
+  function setQuizHandler(handler) {
+    currentQuizHandler = handler;
+  }
+
+  function quizFeedback(text, success) {
+    quizTip.textContent = text;
+    quizTip.style.color = success ? 'var(--ok)' : 'var(--fail)';
+    if (!success) {
+      quizInput.classList.remove('shake');
+      void quizInput.offsetWidth;        // 强制重排，重新触发抖动动画
+      quizInput.classList.add('shake');
+      quizInput.select();
+    }
+  }
+
+  /* ------------------------------ 结算界面 ------------------------------ */
+  function showGameOver({ text, textEn, image }) {
+    if (image) {
+      gameOverImg.src = image;
+      gameOverImg.classList.remove('hidden');
+    } else {
+      gameOverImg.classList.add('hidden');
+    }
+    gameOverText.textContent = text;
+    gameOverSub.textContent = textEn || '';
+    showScreen('gameover');

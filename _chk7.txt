@@ -1,0 +1,26 @@
+﻿    glowing.some((value) => value > 0.25),
+    `emissiveIntensity=${glowing.map((value) => value.toFixed(2)).join(',')}`);
+  check('时间标签同步更新', byId('setHourValue').textContent === '20:00',
+    byId('setHourValue').textContent);
+
+  /* ---------------- 1.6 学校纬度：面板改了，太阳轨迹要跟着变 ---------------- */
+  check('纬度下拉框有地名预设 + 自定义',
+    byId('setLatitudePreset').options.length >= 8,
+    [...byId('setLatitudePreset').options].map((option) => option.textContent).slice(0, 3).join(' / ')
+      + ' …');
+  check('纬度滑杆有范围', byId('setLatitude').min === '-60' && byId('setLatitude').max === '70',
+    `${byId('setLatitude').min}~${byId('setLatitude').max}`);
+  const initialDescription = game.weather.describe();
+  check('describe() 里有 solarText', Boolean(initialDescription.solarText),
+    String(initialDescription.solarText).slice(0, 90));
+  check('面板里有 solarInfo 元素', Boolean(byId('solarInfo')));
+  check('太阳数据行显示了日出/日落/昼长',
+    /日出/.test(byId('solarInfo').textContent) && /昼长/.test(byId('solarInfo').textContent),
+    byId('solarInfo').textContent);
+
+  /* ---------------- 1.7 天气强度（雾 / 雨 / 雪）与月相滑杆 ---------------- */
+  const styleOf = (node) => doc().defaultView.getComputedStyle(node).display;
+  check('面板里有月亮数据行', Boolean(byId('moonInfo')));
+
+  // 雾浓度：拉满之后能见度真的变短，读数也跟着变
+  byId('setWeather').value = 'fog';

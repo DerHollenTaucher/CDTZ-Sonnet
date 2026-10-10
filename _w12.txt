@@ -1,0 +1,12 @@
+﻿    world.sun.visible = world.sun.intensity > 0.03;
+
+    /* 月光：与太阳相对（满月），夜里给校园一层冷色补光 + 一点点方向感 */
+    moonDir.copy(sunDir).negate();
+    const moonUp = moonDir.y > 0.05;
+    moonLight.intensity = moonUp ? 0.32 * Math.pow(night, 1.3) * (1 - weather.cloud * 0.7) : 0;
+    moonLight.color.set(0x9fb6dd);
+    moonLight.position.copy(moonDir).multiplyScalar(200);
+    const moonFade = THREE.MathUtils.clamp(moonDir.y * 6, 0, 1);
+    moon.material.opacity = Math.pow(night, 1.5) * moonFade * (1 - weather.cloud * 0.85);
+    moon.visible = moon.material.opacity > 0.02;
+
