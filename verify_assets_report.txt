@@ -1,0 +1,5 @@
+OK   district_00.glb                 247046 tris   246980 verts   9.48 MB  16 primitives
+OK   district_01.glb                 292621 tris   286687 verts  12.05 MB  28 primitives
+
+checked 2 tiles at 2026-10-04 23:47:25
+result: all good

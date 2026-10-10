@@ -1,0 +1,9 @@
+CDTZ.obj       -> district_00.glb  tris=247046  verts=246980  31.95 MB ->  9.48 MB  mats=diffuse_Black,草 干枯,草 暗淡,Plaster (7),Plaster (8),陶瓦,Plastic,Plaster (4),皮革 浅棕色,橡树 浅色 抛光,Plaster (5),Plaster (6),橡树 浅色 抛光 (1),Plaster,Plaster (9),Plaster (3)
+                  贴图 textures: Grass dry_150_DB.jpg, Grass dark_150_DB.jpg, Terracotta_200_DB50.jpg, Leather light brown_200_D.jpg, Oak light_100_DP.jpg, Oak light_100_DP.jpg
+CDTZ_version1.0.obj -> district_01.glb  tris=292621  verts=286687  37.71 MB -> 12.05 MB  mats=Green/Blue Glass,长满草,瓷砖 方形铺砌 反射,瓷砖2,堆石,红色小砖块,concret(floor plaster),混凝土 暗灰,水磨石,diffuse_Black,Plaster (10),Plaster (4),Plastic,Plastic (1),橡树 浅色 抛光 (1),皮革 浅棕色,Plaster (5),Plaster (6),橡树 浅色 抛光,陶瓦,Plaster (7),Plaster (8),草 干枯,草 暗淡,Black Glass,Pure black plaster,light grey window,Plaster (12)
+                  贴图 textures: Grassy_150_DB.jpg, Tile squares pave_400_DFB.jpg, Tile 2_500_DFB.jpg, Stacked stone_1125_DB.jpg, Red pat_600_DB.jpg, Conc dark gray_600_DB.jpg, Terrazzo_100_DP.jpg, Oak light_100_DP.jpg, Leather light brown_200_D.jpg, Oak light_100_DP.jpg, Terracotta_200_DB50.jpg, Grass dry_150_DB.jpg, Grass dark_150_DB.jpg
+
+2 tiles converted in 12.8s
+OBJ total 69.7 MB -> GLB total 21.5 MB (69% smaller)
+above ground: 539667 triangles / 533667 vertices
+manifest: E:\WallCity\assets\models\city_manifest.json

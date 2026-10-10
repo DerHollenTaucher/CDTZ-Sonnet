@@ -1,0 +1,45 @@
+﻿  galaxy.name = 'galaxy';
+  galaxy.renderOrder = -4;
+  galaxy.visible = false;
+  scene.add(galaxy);
+
+  /* ------------------------------ 月亮 ------------------------------ */
+  // 简化成"满月"：位置与太阳正好相反（真实满月就是这样）
+  const moonCanvas = document.createElement('canvas');
+  moonCanvas.width = 128;
+  moonCanvas.height = 128;
+  {
+    const ctx = moonCanvas.getContext('2d');
+    const gradient = ctx.createRadialGradient(64, 64, 30, 64, 64, 64);
+    gradient.addColorStop(0, 'rgba(255,252,240,1)');
+    gradient.addColorStop(0.72, 'rgba(244,242,232,0.96)');
+    gradient.addColorStop(0.86, 'rgba(180,190,210,0.35)');
+    gradient.addColorStop(1, 'rgba(140,160,190,0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 128, 128);
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.fillStyle = 'rgba(214,214,206,0.55)';   // 一点月海的深浅
+    ctx.beginPath();
+    ctx.arc(50, 54, 15, 0, Math.PI * 2);
+    ctx.arc(78, 76, 11, 0, Math.PI * 2);
+    ctx.arc(62, 92, 7, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const moonTexture = new THREE.CanvasTexture(moonCanvas);
+  moonTexture.colorSpace = THREE.SRGBColorSpace;
+  const moon = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: moonTexture,
+    transparent: true,
+    depthWrite: false,
+    fog: false,
+    opacity: 0
+  }));
+  moon.name = 'moon';
+  moon.scale.setScalar(9);          // 约 1°，比真的稍大一点点，不然太小看不见
+  moon.renderOrder = -1;
+  moon.visible = false;
+  scene.add(moon);
+
+  const moonLight = new THREE.DirectionalLight(0x9fb6dd, 0);
+  moonLight.name = 'moonlight';
+  scene.add(moonLight);

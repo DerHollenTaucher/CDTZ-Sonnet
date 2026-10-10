@@ -1,0 +1,30 @@
+﻿  const won = await waitFor(() => game.game.phase === 'victory', 8000);
+  check('全部击败后进入通关结算', won, game.game.phase);
+  if (won) {
+    check('通关界面可见', visible('victory'));
+    check('结算有 4 项数据', byId('victoryStats').children.length === 4,
+      String(byId('victoryStats').children.length));
+    check('通关时正确率是 100%',
+      /100%/.test(byId('victoryStats').textContent), byId('victoryStats').textContent.slice(0, 80));
+  }
+
+  /* -------------------- 7. 回到标题 -------------------- */
+  byId('btnMenu').click();
+  const menu = await waitFor(() => game.game.phase === 'menu', 5000);
+  check('能返回标题界面', menu && visible('start'), game.game.phase);
+
+  /* -------------------- 汇总 -------------------- */
+  const seconds = ((performance.now() - startedAt) / 1000).toFixed(1);
+  const passed = lines.filter((line) => line.startsWith('PASS')).length;
+  log('');
+  log(failures === 0
+    ? `RESULT ok —— 端到端全部通过（${passed} 项，用时 ${seconds}s）`
+    : `RESULT fail —— 端到端 ${failures} 项失败（用时 ${seconds}s）`);
+  await report(lines.join('\n'));
+})().catch(async (error) => {
+  console.error(error);
+  lines.push(`ERROR  ${error && error.stack ? error.stack : error}`);
+  lines.push('RESULT error');
+  flush();
+  await report(lines.join('\n'));
+});

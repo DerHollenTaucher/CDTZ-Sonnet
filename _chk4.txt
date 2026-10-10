@@ -1,0 +1,7 @@
+﻿
+LineNumber Line                                                            
+---------- ----                                                            
+        47         self.send_header("Cache-Control", "no-store, max-age=0")
+        48         self.send_header("Access-Control-Allow-Origin", "*")    
+
+

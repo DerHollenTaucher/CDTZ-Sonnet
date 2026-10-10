@@ -1,0 +1,59 @@
+﻿
+E:\WallCity\tests\smoke.js:188:  check('雾已初始化（指数雾）', Boolean(scene.fog) && scene.fog.isFogExp2 === true,
+E:\WallCity\tests\smoke.js:189:    scene.fog ? `density=${(scene.fog.density || 0).toFixed(4)}` : '没有雾');
+E:\WallCity\tests\smoke.js:191:    scene.fog.density > 0 && scene.fog.density < 0.05,
+E:\WallCity\tests\smoke.js:192:    `density=${scene.fog.density.toFixed(5)}（校园对角线 ${world.size.diagonal.toFixed(0)} 米）`);
+E:\WallCity\tests\smoke.js:374:    weather.describe().text);
+E:\WallCity\tests\smoke.js:389:  const clearFogDensity = scene.fog.density;
+E:\WallCity\tests\smoke.js:390:  check('晴天雾很淡（指数雾密度小）', clearFogDensity > 0 && clearFogDensity < 0.01,
+E:\WallCity\tests\smoke.js:391:    `density=${clearFogDensity.toFixed(5)}`);
+E:\WallCity\tests\smoke.js:409:  weather.setWeather('rain');
+E:\WallCity\tests\smoke.js:410:  const rainCounts = weather.getParticleCounts();
+E:\WallCity\tests\smoke.js:411:  check('下雨时有雨滴粒子', rainCounts.rain > 0 && rainCounts.snow === 0,
+E:\WallCity\tests\smoke.js:412:    JSON.stringify(rainCounts));
+E:\WallCity\tests\smoke.js:413:  check('下雨时能见度变短（雾更浓）', scene.fog.density > clearFogDensity,
+E:\WallCity\tests\smoke.js:414:    `${scene.fog.density.toFixed(5)} > ${clearFogDensity.toFixed(5)}`);
+E:\WallCity\tests\smoke.js:420:  weather.setWeather('snow');
+E:\WallCity\tests\smoke.js:422:  const snowCounts = weather.getParticleCounts();
+E:\WallCity\tests\smoke.js:423:  check('下雪时有雪花粒子', snowCounts.snow > 0 && snowCounts.rain === 0,
+E:\WallCity\tests\smoke.js:424:    JSON.stringify(snowCounts));
+E:\WallCity\tests\smoke.js:427:  weather.setWeather('clear');
+E:\WallCity\tests\smoke.js:432:  weather.setWeather('snow');
+E:\WallCity\tests\smoke.js:445:  weather.setWeather('clear');
+E:\WallCity\tests\smoke.js:473:      weather.setWeather(weatherKey);
+E:\WallCity\tests\smoke.js:478:          world.sun.intensity, world.hemisphere.intensity, scene.fog.density,
+E:\WallCity\tests\smoke.js:481:          weather.moonLight.intensity,
+E:\WallCity\tests\smoke.js:488:        if (!(scene.fog.density > 0) || !Number.isFinite(scene.fog.density)) {
+E:\WallCity\tests\smoke.js:585:  // 通过 setLatitude() 改纬度，太阳轨迹要跟着变
+E:\WallCity\tests\smoke.js:588:  weather.setLatitude(beijing);
+E:\WallCity\tests\smoke.js:589:  const noonAtBeijing = weather.describe().noonElevation;
+E:\WallCity\tests\smoke.js:590:  weather.setLatitude(30);
+E:\WallCity\tests\smoke.js:591:  const noonAtThirty = weather.describe().noonElevation;
+E:\WallCity\tests\smoke.js:592:  weather.setLatitude(beijing);
+E:\WallCity\tests\smoke.js:596:  check('describe() 给出了日出日落与昼长',
+E:\WallCity\tests\smoke.js:597:    weather.describe().solarText.includes('日出') && weather.describe().sunrise !== null,
+E:\WallCity\tests\smoke.js:598:    weather.describe().solarText);
+E:\WallCity\tests\smoke.js:602:  weather.setLatitude(beijing);
+E:\WallCity\tests\smoke.js:604:  check('白天没有月光', weather.moonLight.intensity < 0.01
+E:\WallCity\tests\smoke.js:605:    && weather.moon.visible === false,
+E:\WallCity\tests\smoke.js:606:    `intensity=${weather.moonLight.intensity.toFixed(3)} visible=${weather.moon.visible}`);
+E:\WallCity\tests\smoke.js:609:    weather.moonLight.intensity > 0.05 && weather.moon.visible === true,
+E:\WallCity\tests\smoke.js:610:    `intensity=${weather.moonLight.intensity.toFixed(3)} `
+E:\WallCity\tests\smoke.js:611:    + `moonY=${weather.moonDirection.y.toFixed(2)}`);
+E:\WallCity\tests\smoke.js:613:    weather.moonDirection.dot(weather.sunDirection) < -0.98,
+E:\WallCity\tests\smoke.js:614:    `dot=${weather.moonDirection.dot(weather.sunDirection).toFixed(3)}`);
+E:\WallCity\tests\smoke.js:623:  weather.setWeather('rain');
+E:\WallCity\tests\smoke.js:626:  const rainPositions = weather.rain.positions;
+E:\WallCity\tests\smoke.js:627:  let rainFinite = true;
+E:\WallCity\tests\smoke.js:628:  let rainSpread = false;
+E:\WallCity\tests\smoke.js:629:  for (let i = 0; i < rainPositions.length; i += 3) {
+E:\WallCity\tests\smoke.js:630:    if (!Number.isFinite(rainPositions[i]) || !Number.isFinite(rainPositions[i + 1])) {
+E:\WallCity\tests\smoke.js:631:      rainFinite = false;
+E:\WallCity\tests\smoke.js:634:    if (Math.abs(rainPositions[i]) > 1) rainSpread = true;
+E:\WallCity\tests\smoke.js:636:  check('雨滴位置一直是有限值', rainFinite);
+E:\WallCity\tests\smoke.js:637:  check('雨滴真的在整片区域里分布', rainSpread);
+E:\WallCity\tests\smoke.js:641:    weather.describe().text);
+E:\WallCity\tests\smoke.js:643:    /[\u4e00-\u9fa5]/.test(weather.describe().text) && /[A-Za-z]/.test(weather.describe().text),
+E:\WallCity\tests\smoke.js:644:    weather.describe().text);
+
+

@@ -1,0 +1,120 @@
+﻿ */
+export function sunDirection(latitude, dayOfYear, solarHour, target = new THREE.Vector3()) {
+  const position = solarPosition(latitude, dayOfYear, solarHour);
+  return directionFromAngles(position.elevation, position.azimuth, target);
+}
+
+/**
+ * 白天的程度：0 = 太阳在地平线以下，1 = 太阳升到 25° 以上。
+ * 用真实高度角而不是"几点钟"，所以高纬度冬天的正午依然会偏暗。
+ */
+export function daylightFactor(elevationDeg) {
+  return THREE.MathUtils.clamp(elevationDeg / 25, 0, 1);
+}
+
+/** 简单的 value noise，用来画云。 */
+function hash2(x, y) {
+  const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453123;
+  return n - Math.floor(n);
+}
+
+function smoothNoise(x, y) {
+  const xi = Math.floor(x);
+  const yi = Math.floor(y);
+  const xf = x - xi;
+  const yf = y - yi;
+  const u = xf * xf * (3 - 2 * xf);
+  const v = yf * yf * (3 - 2 * yf);
+  const a = hash2(xi, yi);
+  const b = hash2(xi + 1, yi);
+  const c = hash2(xi, yi + 1);
+  const d = hash2(xi + 1, yi + 1);
+  return (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v;
+}
+
+function fbm(x, y, octaves = 5) {
+  let value = 0;
+  let amplitude = 0.5;
+  let frequency = 1;
+  for (let i = 0; i < octaves; i += 1) {
+    value += amplitude * smoothNoise(x * frequency, y * frequency);
+    frequency *= 2;
+    amplitude *= 0.5;
+  }
+  return value;
+}
+
+/* ------------------------------------------------------------------ *
+ * 程序化贴图（不占体积，也不用下载）
+ * ------------------------------------------------------------------ */
+
+/** 云层：一张 fbm 噪声，alpha 就是云量。 */
+function makeCloudTexture() {
+  const width = 256;
+  const height = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  const image = ctx.createImageData(width, height);
+
+  for (let y = 0; y < height; y += 1) {
+    const v = y / height;
+    const band = Math.pow(Math.sin(Math.PI * v), 0.55);      // 天顶薄、地平线附近厚
+    for (let x = 0; x < width; x += 1) {
+      const noise = fbm((x / width) * 9, v * 5, 5);
+      const cover = THREE.MathUtils.clamp((noise - 0.4) * 2.8, 0, 1) * band;
+      const offset = (y * width + x) * 4;
+      const shade = 196 + noise * 58;
+      image.data[offset] = shade;
+      image.data[offset + 1] = shade;
+      image.data[offset + 2] = Math.min(255, shade + 8);
+      image.data[offset + 3] = Math.round(cover * 255);
+    }
+  }
+  ctx.putImageData(image, 0, 0);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.repeat.set(2, 1);
+  return texture;
+}
+
+/** 雨点：一条上淡下浓的细长亮线。 */
+function makeRainTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 8;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createLinearGradient(0, 0, 0, 64);
+  gradient.addColorStop(0, 'rgba(210,235,255,0)');
+  gradient.addColorStop(0.35, 'rgba(215,240,255,0.65)');
+  gradient.addColorStop(1, 'rgba(235,250,255,0.05)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(2, 0, 4, 64);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+/** 雪花 / 星星：一个柔和的光点。 */
+function makeSoftDot(inner = 'rgba(255,255,255,1)', outer = 'rgba(255,255,255,0)') {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gradient.addColorStop(0, inner);
+  gradient.addColorStop(0.4, 'rgba(255,255,255,0.75)');
+  gradient.addColorStop(1, outer);
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 64, 64);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+/**
+ * 粒子雨 / 雪：一个 Points，粒子在跟随相机的盒子里循环。
+ * 两种天气共用一个实现，靠贴图、速度和数量区分。

@@ -1,0 +1,40 @@
+﻿/**
+ * smoke.js —— WallCity 自检脚本（在真实浏览器里跑）。
+ *
+ * 它不依赖任何界面元素，只调用游戏本身的模块：
+ *   1. 载入 6 个 GLB，核对三角形 / 顶点 / 包围盒与清单是否一致
+ *   2. 拼城市，检查地块互不重叠、地面存在
+ *   3. 生成 BVH 与碰撞查询器
+ *   4. 模拟玩家下落、行走 600 帧，检查贴地、不穿墙、不掉出地图
+ *   5. 模拟敌人巡逻 300 帧，检查都站在地面上、有位移、不掉下去
+ *   6. 验证判题逻辑（大小写 / 标点 / 繁简体 / 数学题）
+ *
+ * 结果写进 <pre id="diag">，并放在 document.title 与 body[data-result] 上，
+ * tools/smoke.py 会用无头浏览器抓取它们。
+ */
+
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { CONFIG, SUBJECTS } from '../js/config.js';
+import { createWorld } from '../js/environment.js';
+import {
+  buildCollisionMeshes, createCollider, findSpawnPoint, samplePlan
+} from '../js/collision.js';
+import { createPlayer } from '../js/player.js';
+import { createEnemySystem } from '../js/enemies.js';
+import { createQuestionDeck, isCorrect } from '../js/questions.js';
+import {
+  createWeather, SEASONS, WEATHERS, TIME_PRESETS, SEASON_ORDER, WEATHER_ORDER
+} from '../js/weather.js';
+import {
+  solarPosition, solarDeclination, dayLength, sunriseSunset, noonElevation,
+  LATITUDE_PRESETS, SEASON_DAYS
+} from '../js/solar.js';
+
+const lines = [];
+let failures = 0;
+const diag = document.getElementById('diag');
+const down = new THREE.Vector3(0, -1, 0);
+const consoleErrors = [];
+
+// 顺手收集控制台里的报错，一起写进报告

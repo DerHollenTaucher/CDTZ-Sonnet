@@ -1,0 +1,13 @@
+# Python 缓存（tools/smoke.py 会 import serve.py，运行后会生成）
+__pycache__/
+*.pyc
+
+# 编辑器 / 系统
+.vscode/
+.DS_Store
+Thumbs.db
+
+# 自检与流水线生成的报告（不需要进版本库，但保留在本地便于查看）
+# 如果要保留，把下面几行注释掉
+# smoke_report.txt
+# e2e_report.txt

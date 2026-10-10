@@ -1,0 +1,14 @@
+WallCity vendor fetcher -> E:\WallCity\vendor
+  three/build/three.module.min.js                         655.0 KB  cached
+  three/addons/controls/PointerLockControls.js              3.3 KB  cached
+  three/addons/loaders/GLTFLoader.js                      106.0 KB  cached
+  three/addons/loaders/OBJLoader.js                        20.7 KB  cached
+  three/addons/loaders/MTLLoader.js                        10.3 KB  cached
+  three/addons/utils/BufferGeometryUtils.js                31.2 KB  cached
+  three/addons/objects/Sky.js                               6.7 KB  downloaded
+  three-mesh-bvh/index.module.js                          187.7 KB  cached
+
+external module specifiers used by the vendored files:
+  ok three    three-mesh-bvh/index.module.js
+
+vendor folder is ready

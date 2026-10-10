@@ -1,0 +1,110 @@
+﻿ * 粒子雨 / 雪：一个 Points，粒子在跟随相机的盒子里循环。
+ * 两种天气共用一个实现，靠贴图、速度和数量区分。
+ */
+function createPrecipitation({ count, area, height, texture, size, opacity, speedRange, sway }) {
+  const positions = new Float32Array(count * 3);
+  const speeds = new Float32Array(count);
+  const phases = new Float32Array(count);
+
+  for (let i = 0; i < count; i += 1) {
+    positions[i * 3] = (Math.random() - 0.5) * area;
+    positions[i * 3 + 1] = (Math.random() - 0.5) * height;
+    positions[i * 3 + 2] = (Math.random() - 0.5) * area;
+    speeds[i] = speedRange[0] + Math.random() * (speedRange[1] - speedRange[0]);
+    phases[i] = Math.random() * Math.PI * 2;
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setDrawRange(0, count);
+
+  const material = new THREE.PointsMaterial({
+    map: texture,
+    size,
+    transparent: true,
+    opacity,
+    depthWrite: false,
+    sizeAttenuation: true,
+    fog: false
+  });
+
+  const points = new THREE.Points(geometry, material);
+  points.frustumCulled = false;      // 盒子跟着相机走，不能被视锥裁掉
+  points.renderOrder = 2;
+  points.visible = false;
+
+  return { points, positions, speeds, phases, geometry, material, count, area, height, sway };
+}
+
+/** 和 three 的 ACESFilmicToneMapping 同一条曲线（用来估算最终屏幕亮度）。 */
+export function estimateDisplayLuminance(linear, exposure) {
+  const x = linear * exposure;
+  const a = 2.51;
+  const b = 0.03;
+  const c = 2.43;
+  const d = 0.59;
+  const e = 0.14;
+  return THREE.MathUtils.clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0, 1);
+}
+
+const WHITE = new THREE.Color(0xffffff);
+const WINDOW_GLOW = new THREE.Color(0xffc978);
+const WET_DARK = new THREE.Color(0x2a2f33);
+const cloudDay = new THREE.Color(0xffffff);
+const cloudSunset = new THREE.Color(0xffc286);
+const cloudNight = new THREE.Color(0x2b3550);
+const cloudScratch = new THREE.Color();
+// 空气透视用的两种雾色：背对太阳偏冷、朝着太阳偏暖
+const coldHaze = new THREE.Color();
+const warmHaze = new THREE.Color();
+const dayHorizonCool = new THREE.Color(0xa8bed2);
+
+/**
+ * 创建天气/时间系统。
+ *
+ * @param {{scene: THREE.Scene, renderer: object|null, camera: THREE.Camera,
+ *          world: object, quality: object}} options
+ *   renderer 允许传 null：这样没有 WebGL 的自检也能验证参数计算。
+ */
+export function createWeather({ scene, renderer, camera, world, quality }) {
+  // latitude = 学校所在纬度（可以调，太阳轨迹会跟着变）
+  const state = {
+    season: 'summer',
+    weather: 'clear',
+    hour: 12.5,
+    latitude: Number.isFinite(CONFIG.world.latitude) ? CONFIG.world.latitude : 39.9
+  };
+  const visibilityScale = Math.max(1, (world.size && world.size.diagonal ? world.size.diagonal : 420) / 420);
+
+  /* ------------------------------ 天空 ------------------------------ */
+  // 注意：Sky 是一个正方体，scale 就是它的边长。
+  // 它必须比相机远裁剪面小（否则整个天空会被裁掉、画面变黑），
+  // 又要比校园大得多（否则会把校园包不住）。相机 far 见 main.js 的 setupRenderer()。
+  const sky = new Sky();
+  sky.scale.setScalar(1200);
+  sky.name = 'sky';
+  scene.add(sky);
+  const uniforms = sky.material.uniforms;
+  uniforms.turbidity.value = 2;
+  uniforms.rayleigh.value = 1.4;
+  uniforms.mieCoefficient.value = 0.004;
+  uniforms.mieDirectionalG.value = 0.78;
+
+  /* ------------------------------ 云层 ------------------------------ */
+  const cloudTexture = makeCloudTexture();
+  const clouds = new THREE.Mesh(
+    new THREE.SphereGeometry(500, 40, 20),
+    new THREE.MeshBasicMaterial({
+      map: cloudTexture,
+      side: THREE.BackSide,
+      transparent: true,
+      depthWrite: false,
+      opacity: 0,
+      fog: false
+    })
+  );
+  clouds.name = 'clouds';
+  clouds.renderOrder = -2;
+  clouds.visible = false;
+  scene.add(clouds);
+

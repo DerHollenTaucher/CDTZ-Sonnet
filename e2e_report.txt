@@ -1,0 +1,92 @@
+WallCity smoke test report
+browser : C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe
+url     : http://127.0.0.1:8231/tests/e2e.html
+elapsed : 37.7s
+等待游戏启动完成：OK（2.6s）
+PASS  WebGL canvas 已创建  — 800×450
+PASS  载入条已到 100%  — 100%
+PASS  载入界面已隐藏
+PASS  标题界面可见
+PASS  标题界面没有报错提示  — 提示：需要点击画面才能锁定鼠标。若提示不支持，请用最新版 Chrome / Edge。
+      Tip: click
+PASS  学科状态条有 3 个学科  — 3
+PASS  校园里摆进了内容  — 1 项
+PASS  早期版本（draft）被隐藏  — 隐藏: 无（draft: 无）
+PASS  清单里声明的地下部分都加载了  — 0 / 0
+PASS  小地图底图已生成  — 160×107 格，17103 格有表面，高度 -0.1..72.5 米
+PASS  世界尺寸合理  — 539 × 343 米
+PASS  出生点用的是钉住的坐标（换模型不会漂走）  — spawn=(20, 1.64, -43)
+PASS  敌人已生成  — 6
+PASS  渲染器真的在画东西  — draw calls=63 triangles=257642
+PASS  帧率统计在更新  — statFps=「1」 渲染 63 次调用/帧
+PASS  右侧环境面板存在且默认可见
+PASS  季节下拉框有 4 项  — 4
+PASS  天气下拉框有 6 项  — 晴 · Clear / 多云 · Cloudy / 阴天 · Overcast / 雾 · Fog / 雨 · Rain / 雪 · Snow
+PASS  时间下拉框有 7 项（6 个预设 + 自定义）  — 7
+PASS  下拉框选项是中英双语  — 晴 · Clear
+PASS  HUD 与按钮也是中英双语  — 得分 Score
+PASS  面板改动能传到游戏里  — 冬季 Winter · 雪 Snow · 20:00 · 纬度 Lat 39.9°
+PASS  下雪时雪花粒子开启  — {"rain":0,"snow":2400}
+PASS  夜里窗户发光  — emissiveIntensity=0.38
+PASS  时间标签同步更新  — 20:00
+PASS  纬度下拉框有地名预设 + 自定义  — 漠河 Mohe 52.97° / 哈尔滨 Harbin 45.80° / 北京 Beijing 39.90° …
+PASS  纬度滑杆有范围  — -60~70
+PASS  describe() 里有 solarText  — 日出 07:25 · 日落 16:35 · 昼长 9h10m · 正午 26.7° · 当前 -37.4° · 能见度 319m
+PASS  面板里有 solarInfo 元素
+PASS  太阳数据行显示了日出/日落/昼长  — 日出 07:25 · 日落 16:35 · 昼长 9h10m · 正午 26.7° · 当前 -37.4° · 能见度 319m
+PASS  面板里有月亮数据行
+PASS  雾浓度滑杆能把雾调浓（能见度变短）  — 167m → 56m（读数 ×3.00）
+PASS  雾浓度读数是 ×3.00  — ×3.00
+PASS  能见度写进了太阳数据行  — 日出 07:25 · 日落 16:35 · 昼长 9h10m · 正午 26.7° · 当前 -37.4° · 能见度 56m
+PASS  雾浓度会存进设置  — 3
+PASS  雾天不显示雨强度滑杆  — none
+PASS  下雨时雨强度滑杆出现  — block
+PASS  雨强度滑杆能改雨量  — 1260 → 4200（读数 150%）
+PASS  下雪时雪强度滑杆出现、雨强度滑杆收起  — 雪=block 雨=none
+PASS  雪强度滑杆能改雪量  — {"rain":0,"snow":2400}（读数 150%）
+PASS  农历日滑杆是初一~三十  — 1~30
+PASS  拖农历日滑杆能改月相  — 十五 99% → 初一 0%
+PASS  农历读数写成"初一"  — 初一
+PASS  月亮数据行跟着变  — 农历初一（12月21日） · 朔（新月） New moon · 亮面 0% · 月亮 在地平线下
+PASS  满月的月亮比新月亮得多（月光强度）  — 十五月亮高度 71.5°
+PASS  勾上"真实农历"后滑杆被锁住
+PASS  真实农历算出来的农历日在 1~30  — 农历第 13 天（12月21日 · 盈凸月）
+PASS  改纬度后太阳数据行跟着变  — 北京「日出 07:25 · 日落 16:35 · 昼长 9h10m · 正午 26.7° · 当前 26.3° · 能见度 974m」→ 哈尔滨「日出 07:46 · 日落 16:14 · 昼长 8h28m · 正午 20.8° · 当前 20.4° · 能见度 974m」
+PASS  纬度传到了游戏里  — 45.8°
+PASS  哈尔滨冬至正午太阳比北京更低  — 20.8° < 26.7°
+PASS  哈尔滨冬至昼比北京更短  — 8.5h < 9.2h
+PASS  纬度会跟着一起存进设置  — 45.8
+    夏日晴天正午：这一帧画了 draws=63 tris=257642，但这个无头环境读不回像素，跳过亮度判断
+    夏日阴天正午：这一帧画了 draws=63 tris=257642，但这个无头环境读不回像素，跳过亮度判断
+    秋日雾天傍晚：这一帧画了 draws=66 tris=258602，但这个无头环境读不回像素，跳过亮度判断
+    冬日下雪上午：这一帧画了 draws=67 tris=258602，但这个无头环境读不回像素，跳过亮度判断
+    夏日晴天夜晚：这一帧画了 draws=67 tris=258604，但这个无头环境读不回像素，跳过亮度判断
+    亮度检查：0 种测到，5 种因为环境不支持像素回读而跳过（真实浏览器里可以用 __wallcity.probeRender() 看）
+PASS  点击开始后进入游戏  — playing
+PASS  HUD 显示出来了
+PASS  小地图开始绘制
+PASS  靠近敌人会弹出答题面板
+PASS  答题面板可见
+PASS  题目不为空
+PASS  学科标签正确  — 数学 · Math
+PASS  答对后回到游戏  — playing
+PASS  分数增加了  — 160
+PASS  剩余敌人数减少  — 5
+PASS  HUD 上的剩余数同步  — 5
+PASS  能再次触发答题
+PASS  答错后进入惩罚界面  — gameover
+PASS  惩罚界面可见
+PASS  显示了惩罚文案  — 先把《滕王阁序》背下来再回家！
+PASS  惩罚文案里给出了正确答案  — Recite A Tribute to King Teng's Tower before you go home!　｜　
+PASS  惩罚图片真的加载出来了  — assets/images/penalty_chinese_2.jpg 500px
+PASS  “再来一局”能重开  — playing
+PASS  重开后敌人全部复活  — 6
+PASS  重开后分数归零  — 0
+PASS  6 只敌人全部可以击败  — 剩下的敌人：0（用了 6 轮）
+PASS  全部击败后进入通关结算  — victory
+PASS  通关界面可见
+PASS  结算有 4 项数据  — 4
+PASS  通关时正确率是 100%  — 得分 Score960击败 Defeated6 / 6正确率 Accuracy100%用时 Time00:01
+PASS  能返回标题界面  — menu
+
+RESULT ok —— 端到端全部通过（78 项，用时 35.5s）

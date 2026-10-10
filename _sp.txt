@@ -1,0 +1,14 @@
+﻿
+LineNumber Line                                                                           
+---------- ----                                                                           
+        96 def main():                                                                    
+        98     parser.add_argument("--browser", default=None, help="浏览器可执行文件路径")          
+        99     parser.add_argument("--timeout", type=float, default=240.0, help="等待结果的秒数")
+       100     parser.add_argument("--keep-open", action="store_true", help="出错时保留浏览器窗口") 
+       101     parser.add_argument("--page", default="tests/smoke.html",                  
+       103     parser.add_argument("--report", default=None, help="报告文件名")                
+       104     parser.add_argument("--window-size", default="1000,900",                   
+       123     url = f"http://127.0.0.1:{port}/{args.page.lstrip('/')}"                   
+       178     elif "e2e" in args.page:                                                   
+
+

@@ -1,0 +1,12 @@
+﻿
+LineNumber Line                                                                                       
+---------- ----                                                                                       
+         4 elapsed : 36.6s                                                                            
+        23 PASS  天气下拉框有 6 项  — 晴 · Clear / 多云 · Cloudy / 阴天 · Overcast / 雾 · Fog / 雨 · Rain / 雪 · Snow
+        27 PASS  面板改动能传到游戏里  — 冬季 Winter · 雪 Snow · 20:00 · 纬度 Lat 39.9°                              
+        28 PASS  下雪时雪花粒子开启  — {"rain":0,"snow":2400}                                                  
+        43     秋日雾天傍晚：这一帧画了 draws=53 tris=235761，但这个无头环境读不回像素，跳过亮度判断                                  
+        44     冬日下雪上午：这一帧画了 draws=54 tris=235761，但这个无头环境读不回像素，跳过亮度判断                                  
+        74 RESULT ok —— 端到端全部通过（60 项，用时 30.6s）                                                        
+
+

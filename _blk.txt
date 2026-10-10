@@ -1,0 +1,33 @@
+﻿
+  E:\WallCity\js\weather.js:516:          material.color.set(season.grass);
+  E:\WallCity\js\weather.js:517:        } else {
+  E:\WallCity\js\weather.js:518:          if (snowCover > 0) material.color.lerp(WHI
+TE, snowCover * 0.6);
+  E:\WallCity\js\weather.js:519:          if (wet > 0) material.color.lerp(WET_DARK,
+ 0.22);
+  E:\WallCity\js\weather.js:520:        }
+  E:\WallCity\js\weather.js:521:        material.roughness = 0.88;
+  E:\WallCity\js\weather.js:522:        material.metalness = 0.0;
+  E:\WallCity\js\weather.js:523:        material.envMapIntensity = 0.6;
+> E:\WallCity\js\weather.js:524:      } else if (name.includes('black')) {
+> E:\WallCity\js\weather.js:525:        // “diffuse_Black”是窗户/玻璃：白天反射天空，晚上自己亮起来
+  E:\WallCity\js\weather.js:526:        material.roughness = 0.16;
+  E:\WallCity\js\weather.js:527:        material.metalness = 0.5;
+  E:\WallCity\js\weather.js:528:        material.envMapIntensity = 1.25;
+  E:\WallCity\js\weather.js:529:        material.emissive.copy(WINDOW_GLOW);
+  E:\WallCity\js\weather.js:530:        // 不要太亮：这个材质在模型里占的面积不小，0.4 左右刚好是"亮着的窗"
+  E:\WallCity\js\weather.js:531:        material.emissiveIntensity = Math.pow(night,
+ 1.4) * 0.38;
+  E:\WallCity\js\weather.js:532:      } else {
+  E:\WallCity\js\weather.js:533:        material.roughness = 0.9;
+  E:\WallCity\js\weather.js:534:        material.metalness = 0.0;
+  E:\WallCity\js\weather.js:535:      }
+  E:\WallCity\js\weather.js:536:    });
+  E:\WallCity\js\weather.js:537:
+  E:\WallCity\js\weather.js:538:    if (world.groundMaterial) {
+  E:\WallCity\js\weather.js:539:      const ground = world.groundMaterial;
+  E:\WallCity\js\weather.js:540:      ground.color.set(season.ground);
+  E:\WallCity\js\weather.js:541:      if (snowCover > 0) ground.color.lerp(WHITE, sn
+owCover * 0.75);
+
+

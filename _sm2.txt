@@ -1,0 +1,60 @@
+﻿    `39.9°→${noonAtBeijing.toFixed(1)}°，30°→${noonAtThirty.toFixed(1)}°`);
+  check('describe() 给出了日出日落与昼长',
+    weather.describe().solarText.includes('日出') && weather.describe().sunrise !== null,
+    weather.describe().solarText);
+
+  // 月亮：夜里在、白天不在，而且方向与太阳相反
+  weather.setSeason('summer');
+  weather.setLatitude(beijing);
+  weather.setHour(12);
+  check('白天没有月光', weather.moonLight.intensity < 0.01
+    && weather.moon.visible === false,
+    `intensity=${weather.moonLight.intensity.toFixed(3)} visible=${weather.moon.visible}`);
+  weather.setHour(23);
+  check('夜里有月光、月亮可见',
+    weather.moonLight.intensity > 0.05 && weather.moon.visible === true,
+    `intensity=${weather.moonLight.intensity.toFixed(3)} `
+    + `moonY=${weather.moonDirection.y.toFixed(2)}`);
+  check('月亮方向与太阳相反',
+    weather.moonDirection.dot(weather.sunDirection) < -0.98,
+    `dot=${weather.moonDirection.dot(weather.sunDirection).toFixed(3)}`);
+  check('夜里天空会被压暗（nightDome 打开）',
+    weather.nightDome.visible === true && weather.nightDome.material.opacity > 0.4,
+    `opacity=${weather.nightDome.material.opacity.toFixed(2)}`);
+  weather.setHour(12);
+  check('白天 nightDome 关闭', weather.nightDome.visible === false,
+    `opacity=${weather.nightDome.material.opacity.toFixed(2)}`);
+
+  // 粒子推进 60 帧不能出 NaN，也不能全部掉到一个点上
+  weather.setWeather('rain');
+  weather.update(1 / 60, new THREE.Vector3(0, 2, 0));
+  for (let i = 0; i < 60; i += 1) weather.update(1 / 60, new THREE.Vector3(0, 2, 0));
+  const rainPositions = weather.rain.positions;
+  let rainFinite = true;
+  let rainSpread = false;
+  for (let i = 0; i < rainPositions.length; i += 3) {
+    if (!Number.isFinite(rainPositions[i]) || !Number.isFinite(rainPositions[i + 1])) {
+      rainFinite = false;
+      break;
+    }
+    if (Math.abs(rainPositions[i]) > 1) rainSpread = true;
+  }
+  check('雨滴位置一直是有限值', rainFinite);
+  check('雨滴真的在整片区域里分布', rainSpread);
+  weather.reset();
+  check('reset() 能回到默认天气',
+    weather.state.season === 'summer' && weather.state.weather === 'clear',
+    weather.describe().text);
+  check('描述文字是中英双语',
+    /[\u4e00-\u9fa5]/.test(weather.describe().text) && /[A-Za-z]/.test(weather.describe().text),
+    weather.describe().text);
+
+  /* ----------------------------- 7. 判题逻辑 ----------------------------- */
+  check('英文答案忽略大小写', isCorrect({ a: ['went'] }, 'WENT'));
+  check('英文答案忽略多余空格', isCorrect({ a: ['went'] }, '  went  '));
+  check('中文答案忽略标点', isCorrect({ a: ['余音袅袅，不绝如缕'] }, '余音袅袅不绝如缕'));
+  check('中文答案接受繁体',
+    isCorrect({ a: ['余音袅袅，不绝如缕', '餘音裊裊不絕如縷'] }, '餘音裊裊不絕如縷'));
+  check('中文答案忽略句号', isCorrect({ a: ['先天下之忧而忧'] }, '先天下之忧而忧。'));
+  check('错误答案被拒绝', !isCorrect({ a: ['went'] }, 'goed'));
+  check('空答案被拒绝', !isCorrect({ a: ['went'] }, '   '));

@@ -1,0 +1,200 @@
+﻿      positions[offset] += wind * dt * (1 + Math.sin(phases[i]) * 0.4);
+      if (sway > 0) {
+        positions[offset] += Math.sin(phases[i] + positions[offset + 1] * 0.35) * sway * dt;
+        positions[offset + 2] += Math.cos(phases[i] * 0.7) * sway * 0.4 * dt;
+      }
+      if (positions[offset + 1] < -halfHeight) {
+        // 落到盒子底部就挪回顶部（雨滴是下不完的）
+        positions[offset + 1] = halfHeight;
+        positions[offset] = (Math.random() - 0.5) * area;
+        positions[offset + 2] = (Math.random() - 0.5) * area;
+      }
+      if (positions[offset] > halfArea) positions[offset] -= area;
+      else if (positions[offset] < -halfArea) positions[offset] += area;
+      phases[i] += dt;
+    }
+    system.geometry.attributes.position.needsUpdate = true;
+  }
+
+  function setPrecipitation(system, active, opacity) {
+    system.points.visible = active;
+    system.material.opacity = opacity;
+  }
+
+  /* ---------------------------- 环境反射贴图 ---------------------------- */
+  function refreshEnvironment() {
+    if (!renderer || !renderer.getRenderTarget) return;
+    if (!pmrem) pmrem = new THREE.PMREMGenerator(renderer);
+    envClouds.visible = clouds.visible;
+    envClouds.material = clouds.material;
+    if (envTarget) envTarget.dispose();
+    envTarget = pmrem.fromScene(envScene, 0, 1, 12000);
+    scene.environment = envTarget.texture;
+  }
+
+  /* -------------------------------- 描述文字 -------------------------------- */
+  function describe() {
+    const season = SEASONS[state.season] || SEASONS.summer;
+    const weather = WEATHERS[state.weather] || WEATHERS.clear;
+    const solar = computeSolar();
+    const noon = noonElevation(state.latitude, solar.dayOfYear);
+    return {
+      season: season.key,
+      weather: weather.key,
+      hour: state.hour,
+      latitude: state.latitude,
+      dayOfYear: solar.dayOfYear,
+      seasonDayLabel: SEASON_DAY_LABEL[state.season] || '',
+      sunrise: solar.sunInfo.sunrise,
+      sunset: solar.sunInfo.sunset,
+      dayLength: solar.sunInfo.length,
+      noonElevation: noon,
+      sunElevation: solar.position.elevation,
+      sunAzimuth: solar.position.azimuth,
+      text: `${season.label}季 ${season.labelEn} · ${weather.label} ${weather.labelEn}`
+        + ` · ${formatHour(state.hour)} · 纬度 Lat ${state.latitude.toFixed(1)}°`,
+      // 给界面显示的一行"太阳数据"：证明纬度是真的在起作用
+      solarText: `日出 ${formatClock(solar.sunInfo.sunrise)} · 日落 ${formatClock(solar.sunInfo.sunset)}`
+        + ` · 昼长 ${formatDayLength(solar.sunInfo.length)}`
+        + ` · 正午 ${noon.toFixed(1)}° · 当前 ${solar.position.elevation.toFixed(1)}°`
+    };
+  }
+
+  /* --------------------------------- 应用 --------------------------------- */
+  /** 按"纬度 + 日期 + 时刻"算出这一帧的太阳状态。 */
+  function computeSolar() {
+    const season = SEASONS[state.season] || SEASONS.summer;
+    const dayOfYear = state.dayOfYear || SEASON_DAYS[state.season] || SEASON_DAYS.summer;
+    const position = solarPosition(state.latitude, dayOfYear, state.hour);
+    directionFromAngles(position.elevation, position.azimuth, sunDir);
+    const daylight = daylightFactor(position.elevation);
+    return {
+      season,
+      dayOfYear,
+      position,
+      daylight,
+      night: 1 - daylight,
+      sunInfo: sunriseSunset(state.latitude, dayOfYear)
+    };
+  }
+
+  function apply() {
+    const solar = computeSolar();
+    const weather = WEATHERS[state.weather] || WEATHERS.clear;
+    const { season, daylight, night, position } = solar;
+    const elevation = position.elevation;
+    // 太阳越低，阳光穿过的大气越厚：浑浊度和米氏散射变大，颜色偏红
+    const horizonBoost = THREE.MathUtils.clamp(1 - elevation / 22, 0, 1);
+
+    /* 天空参数 */
+    uniforms.sunPosition.value.copy(sunDir);
+    // 注意 rayleigh 越大天空越亮：夜里要反过来把它压低，否则"夜晚"会亮得像黄昏。
+    uniforms.turbidity.value = weather.turbidity * (0.8 + 0.35 * horizonBoost)
+      * (0.85 + 0.15 * daylight);
+    uniforms.rayleigh.value = (1.1 + weather.cloud * 0.9) * (1 - 0.78 * night)
+      * (1 + 0.3 * horizonBoost * (1 - night));
+    uniforms.mieCoefficient.value = weather.mie * (1 + 0.9 * horizonBoost);
+    envSky.material.uniforms.turbidity.value = uniforms.turbidity.value;
+    envSky.material.uniforms.rayleigh.value = uniforms.rayleigh.value;
+    envSky.material.uniforms.mieCoefficient.value = uniforms.mieCoefficient.value;
+    envSky.material.uniforms.sunPosition.value.copy(sunDir);
+
+    /* 太阳光：颜色随高度角变暖，强度按"大气质量"衰减 */
+    const airMass = 1 / Math.max(0.12, Math.sin(THREE.MathUtils.degToRad(
+      Math.max(elevation, 0.5))));
+    const extinction = Math.exp(-0.16 * (airMass - 1));     // 低太阳被大气吃掉很多
+    const warmth = THREE.MathUtils.clamp(1 - elevation / 30, 0, 1);
+    colorScratch.copy(sunHigh).lerp(sunLow, warmth * 0.92);
+    if (season.warmth > 0) colorScratch.lerp(autumnTint, season.warmth * 0.25 * (1 - warmth));
+    world.sun.color.copy(colorScratch);
+    world.sun.intensity = world.sunIntensity * Math.pow(daylight, 0.6) * extinction
+      * weather.sunFactor;
+    world.sun.visible = world.sun.intensity > 0.03;
+
+    /* 月光：与太阳相对（满月），夜里给校园一层冷色补光 + 一点点方向感 */
+    moonDir.copy(sunDir).negate();
+    const moonUp = moonDir.y > 0.05;
+    moonLight.intensity = moonUp ? 0.32 * Math.pow(night, 1.3) * (1 - weather.cloud * 0.7) : 0;
+    moonLight.color.set(0x9fb6dd);
+    moonLight.position.copy(moonDir).multiplyScalar(200);
+    const moonFade = THREE.MathUtils.clamp(moonDir.y * 6, 0, 1);
+    moon.material.opacity = Math.pow(night, 1.5) * moonFade * (1 - weather.cloud * 0.85);
+    moon.visible = moon.material.opacity > 0.02;
+
+    /* 半球光 / 环境光 */
+    fogScratch.copy(daySkyColor).lerp(nightSkyColor, night);
+    world.hemisphere.color.copy(fogScratch);
+    world.hemisphere.groundColor.set(season.ground);
+    world.hemisphere.intensity = world.ambientIntensity * (0.16 + 0.85 * daylight) * weather.ambient;
+    ambient.intensity = (0.04 + night * 0.15) * weather.ambient;
+    ambient.color.set(night > 0.55 ? 0x40608f : 0x8296ab);
+
+    /* 雾：指数雾（更接近真实的霾），密度由能见度换算 */
+    fogScratch.copy(daySkyColor).lerp(nightSkyColor, night)
+      .lerp(colorScratch, 0.12 + horizonBoost * 0.18);
+    scene.fog.color.copy(fogScratch);
+    const visibility = weather.visibility * visibilityScale;
+    // three 的指数雾是 1-exp(-(d·z)^2)，d·z≈1.5 时差不多看不清了
+    scene.fog.density = 1.5 / Math.max(40, visibility);
+
+    // 空气透视用的两种雾色（update() 里按视角方向混合）
+    coldHaze.copy(nightSkyColor).lerp(dayHorizonCool, daylight * (1 - weather.cloud * 0.4));
+    warmHaze.copy(coldHaze).lerp(colorScratch, 0.6);
+
+    /* 曝光：物理天空很亮，配合 ACES 要压低；阴雨天再补一点，让画面亮度稳定 */
+    if (renderer) {
+      const base = world.exposure.night
+        + (world.exposure.day - world.exposure.night) * Math.pow(daylight, 0.55);
+      const weatherCompensation = world.exposure.adaptToWeather
+        ? 0.92 + 0.18 * (1 - weather.sunFactor)
+        : 1;
+      renderer.toneMappingExposure = THREE.MathUtils.clamp(
+        base * weatherCompensation, world.exposure.min, world.exposure.max);
+    }
+
+    /* 夜间天空压暗 + 云层受光 */
+    nightDome.material.opacity = Math.pow(night, 1.1) * 0.78;
+    nightDome.visible = nightDome.material.opacity > 0.02;
+    clouds.material.opacity = weather.cloud * 0.92;
+    clouds.visible = clouds.material.opacity > 0.03;
+    // 云的颜色跟着太阳走：正午白、日落暖橙、夜里冷灰
+    cloudScratch.copy(cloudDay).lerp(cloudSunset, horizonBoost * 0.9);
+    cloudScratch.lerp(cloudNight, night);
+    clouds.material.color.copy(cloudScratch);
+
+    /* 星星与银河：夜里、云少的时候才看得到 */
+    const starOpacity = Math.pow(night, 1.8) * (1 - weather.cloud * 0.95);
+    stars.material.opacity = starOpacity;
+    stars.visible = starOpacity > 0.02;
+    galaxy.material.opacity = starOpacity * 0.5;
+    galaxy.visible = galaxy.material.opacity > 0.02;
+
+    /* 雨雪 */
+    setPrecipitation(rain, weather.precipitation === 'rain', 0.55);
+    setPrecipitation(snow, weather.precipitation === 'snow', 0.9);
+
+    /* 材质染色 + 环境反射 */
+    tintMaterials(season, weather, daylight);
+    refreshEnvironment();
+
+    return describe();
+  }
+
+  /* --------------------------------- 每帧 --------------------------------- */
+  function update(dt, cameraPosition, cameraQuaternion) {
+    const weather = WEATHERS[state.weather] || WEATHERS.clear;
+    if (cameraPosition) {
+      clouds.position.copy(cameraPosition);
+      stars.position.copy(cameraPosition);
+      galaxy.position.copy(cameraPosition);
+      nightDome.position.copy(cameraPosition);
+      rain.points.position.copy(cameraPosition);
+      snow.points.position.copy(cameraPosition);
+      if (moon.visible) {
+        moon.position.copy(cameraPosition).addScaledVector(moonDir, 520);
+      }
+      moonLight.target.position.copy(cameraPosition);
+      moonLight.target.updateMatrixWorld();
+    }
+
+    // 空气透视：朝着太阳看，雾偏暖；背对太阳看，雾偏冷。
